@@ -4,7 +4,7 @@
 
 ## The Backstory
 
-The accused is **Eddie Dean**, a medium-to-small Groodle and certified Good Boy. Eddie's rap sheet includes: barking at the postman (fair), barking at possums (reasonable), and barking at **Shadow** — the blue-grey cat from two doors down who is, by any objective measure, the *actual* neighbourhood terrorist. Shadow's hobbies include sitting on top of everyone's roofs and tormenting every dog in a three-block radius. Nobody writes Shadow a letter.
+The accused is **Eddie Dean**, a medium-to-small Groodle and certified Good Boy. Eddie's rap sheet includes: barking at the postman (fair), saying g'day to doggy colleagues getting their walk (reasonable), and barking at **Shadow** — the blue-grey cat from two doors down who is, by any objective measure, the *actual* neighbourhood terrorist. Shadow's hobbies include sitting on top of everyone's roofs and tormenting every dog in a three-block radius. Nobody writes Shadow a letter.
 
 One fine day, we received a 500-word *handwritten* letter from a neighbour — let's call her Karen — detailing how Eddie had allegedly barked for **2 hours straight** and was "impacting at least 60 people." Sixty. Six-zero. One Groodle. Sixty victims. We can only assume Karen was out at our gate for the full 2 hours with a clipboard and a stopwatch, which ironically would give Eddie something to bark at.
 
@@ -14,7 +14,7 @@ The letter was a masterclass in passive aggression, meticulously penned in cursi
 
 My wife's first instinct was to slap a shock collar on Eddie Dean. No trial. No evidence review. No due process. Just straight to the electric chair based on the uncorroborated testimony of one anonymous cursive enthusiast. Eddie's own mother was ready to turn on him.
 
-Rather than electrocute the family dog on Karen's say-so, we decided to do what any reasonable person would do: build an over-engineered AI surveillance system to prove Karen wrong with cold, hard data. Eddie deserves justice. Shadow deserves the letter. And my wife owes Eddie an apology.
+Rather than electrocute the family dog on Karen's say-so, I decided to do what any reasonable person would do: build an over-engineered AI surveillance system to prove Karen wrong with cold, hard data. Eddie deserves justice. Shadow deserves the letter. And my wife owes Eddie an apology.
 
 ## What It Does
 
@@ -87,7 +87,7 @@ Reply to any bark notification naturally:
 
 ## The Verdict
 
-Spoiler alert: Eddie does not bark for 2 hours straight. He never has. But now we have the data to prove it, timestamped, classified by AI, and logged in a database that would make a data engineer weep. And if it turns out he *does* bark for an extended period, we'll know exactly when, why, and that Shadow was almost certainly on a roof somewhere nearby looking smug.
+Spoiler alert: Eddie does not bark for 2 hours straight. He never has. But now we have the data to prove it, timestamped, classified by AI, and logged in a database. And if it turns out he *does* bark for an extended period, we'll know exactly when, why, and that Shadow was almost certainly on a roof somewhere nearby looking smug.
 
 Your loving developer. ❤️
 
