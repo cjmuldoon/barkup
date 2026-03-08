@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     sdm_project_id: str
     pubsub_project_id: str
     pubsub_subscription_id: str = "barkup-events"
-    camera_device_id: str
+    camera_device_ids: str  # Comma-separated device IDs, or "all"
 
     # Notion
     notion_api_key: str
@@ -38,7 +38,32 @@ class Settings(BaseSettings):
     s3_access_key: str | None = None
     s3_secret_key: str | None = None
 
+    # Camera names (optional, comma-separated matching camera_device_ids order)
+    # e.g. "Indoor,Backyard"
+    camera_names: str | None = None
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    def get_camera_ids(self) -> list[str] | None:
+        """Return list of camera IDs, or None for all cameras."""
+        if self.camera_device_ids.lower() == "all":
+            return None
+        return [cid.strip() for cid in self.camera_device_ids.split(",")]
+
+    def get_camera_name(self, device_id: str) -> str:
+        """Return friendly name for a camera, or a short ID."""
+        ids = self.get_camera_ids()
+        names = (
+            [n.strip() for n in self.camera_names.split(",")]
+            if self.camera_names
+            else []
+        )
+        if ids and device_id in ids:
+            idx = ids.index(device_id)
+            if idx < len(names):
+                return names[idx]
+        # Fallback: last 8 chars of device ID
+        return device_id.split("/")[-1][:8] if "/" in device_id else device_id[:8]
 
 
 settings = Settings()

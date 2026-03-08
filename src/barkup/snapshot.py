@@ -12,7 +12,7 @@ from barkup.sdm_client import SDMClient
 logger = logging.getLogger(__name__)
 
 
-def fetch_snapshot(sdm_client: SDMClient, event_id: str, save_dir: str | None = None) -> str | None:
+def fetch_snapshot(sdm_client: SDMClient, device_id: str, event_id: str, save_dir: str | None = None) -> str | None:
     """
     Fetch a snapshot image for a camera event.
     Must be called within 30 seconds of the event.
@@ -20,7 +20,7 @@ def fetch_snapshot(sdm_client: SDMClient, event_id: str, save_dir: str | None = 
     Returns the local file path if saved, or None on failure.
     """
     try:
-        result = sdm_client.generate_image(event_id)
+        result = sdm_client.generate_image(device_id, event_id)
         image_url = result.get("url")
         token = result.get("token")
         if not image_url:

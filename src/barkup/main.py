@@ -70,9 +70,10 @@ class BarkupOrchestrator:
         self._telegram.send_nightly_summary(episodes)
         logger.info("Nightly summary sent: %d episodes", len(episodes))
 
-    def _on_camera_event(self, event_id: str, timestamp: datetime, event_type: str):
+    def _on_camera_event(self, event_id: str, timestamp: datetime, event_type: str, device_id: str):
         """Called by PubSub listener when a camera event arrives."""
-        logger.info("Camera event received [%s]: %s", event_type, event_id)
+        camera_name = settings.get_camera_name(device_id)
+        logger.info("Camera event received [%s] from %s: %s", event_type, camera_name, event_id)
 
         # Cooldown: skip if we just processed an event
         now = datetime.now()
@@ -85,7 +86,7 @@ class BarkupOrchestrator:
 
         # Fetch snapshot immediately (30s expiry)
         from barkup.snapshot import fetch_snapshot
-        snapshot_path = fetch_snapshot(self._sdm, event_id)
+        snapshot_path = fetch_snapshot(self._sdm, device_id, event_id)
 
         with self._lock:
             if self._processing:
@@ -96,19 +97,20 @@ class BarkupOrchestrator:
         # Process in a thread to not block the Pub/Sub callback
         thread = threading.Thread(
             target=self._process_sound_event,
-            args=(event_id, timestamp, snapshot_path),
+            args=(event_id, timestamp, snapshot_path, device_id),
             daemon=True,
         )
         thread.start()
 
     def _process_sound_event(
-        self, event_id: str, timestamp: datetime, snapshot_path: str | None
+        self, event_id: str, timestamp: datetime, snapshot_path: str | None, device_id: str
     ):
         """Start RTSP stream, classify audio, track episodes."""
         from barkup.episode_tracker import EpisodeTracker
         from barkup.rtsp_stream import RTSPStream
 
-        stream = RTSPStream(self._sdm)
+        camera_name = settings.get_camera_name(device_id)
+        stream = RTSPStream(self._sdm, device_id)
         tracker = EpisodeTracker()
 
         try:
@@ -122,7 +124,7 @@ class BarkupOrchestrator:
             stream.start_recording(clip_path)
 
             # Build Nest app deep link
-            device_parts = settings.camera_device_id.split("/")
+            device_parts = device_id.split("/")
             camera_id = device_parts[-1] if device_parts else ""
             nest_link = f"https://home.nest.com/camera/{camera_id}"
 
@@ -149,6 +151,7 @@ class BarkupOrchestrator:
                     episode.snapshot_url = snapshot_path
                     episode.clip_path = clip_path
                     episode.nest_link = nest_link
+                    episode.camera_name = camera_name
                     page_id = self._notion.log_episode(episode)
                     self._track_episode(episode)
                     # Send Telegram notification
@@ -174,6 +177,7 @@ class BarkupOrchestrator:
                 remaining.snapshot_url = snapshot_path
                 remaining.clip_path = clip_path
                 remaining.nest_link = nest_link if 'nest_link' in dir() else None
+                remaining.camera_name = camera_name
                 page_id = self._notion.log_episode(remaining)
                 self._track_episode(remaining)
                 if self._telegram.enabled:
@@ -186,7 +190,12 @@ class BarkupOrchestrator:
     def run(self):
         """Main entry point - start listening for events."""
         logger.info("Barkup starting...")
-        logger.info("Camera: %s", settings.camera_device_id)
+        camera_ids = settings.get_camera_ids()
+        if camera_ids:
+            for cid in camera_ids:
+                logger.info("Camera: %s (%s)", settings.get_camera_name(cid), cid[-12:])
+        else:
+            logger.info("Cameras: all linked devices")
         logger.info("Notion DB: %s", settings.notion_database_id)
 
         # Start Telegram bot polling for replies

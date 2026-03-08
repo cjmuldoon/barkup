@@ -32,10 +32,11 @@ class NotionLogger:
         # Format a readable event title in local time
         local_time = start.astimezone(tz).strftime("%I:%M %p")
         duration_min = episode.duration_seconds / 60
+        cam_prefix = f"[{episode.camera_name}] " if episode.camera_name else ""
         if duration_min >= 1:
-            title = f"{episode.dominant_bark_type.value} - {local_time} ({duration_min:.0f}m)"
+            title = f"{cam_prefix}{episode.dominant_bark_type.value} - {local_time} ({duration_min:.0f}m)"
         else:
-            title = f"{episode.dominant_bark_type.value} - {local_time} ({episode.duration_seconds:.0f}s)"
+            title = f"{cam_prefix}{episode.dominant_bark_type.value} - {local_time} ({episode.duration_seconds:.0f}s)"
 
         properties = {
             "Event": {"title": [{"text": {"content": title}}]},
@@ -52,6 +53,9 @@ class NotionLogger:
             "Owner Home": {"checkbox": False},
             "Intervened": {"checkbox": False},
         }
+
+        if episode.camera_name:
+            properties["Camera"] = {"select": {"name": episode.camera_name}}
 
         # Add optional URL fields
         if episode.clip_url:

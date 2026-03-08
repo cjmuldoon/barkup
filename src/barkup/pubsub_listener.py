@@ -20,10 +20,10 @@ TRIGGER_EVENT_TYPES = [
 
 
 class PubSubListener:
-    def __init__(self, on_camera_event: Callable[[str, datetime, str], None]):
+    def __init__(self, on_camera_event: Callable[[str, datetime, str, str], None]):
         """
         Args:
-            on_camera_event: Callback with (event_id, event_timestamp, event_type).
+            on_camera_event: Callback with (event_id, event_timestamp, event_type, device_id).
         """
         self._on_camera_event = on_camera_event
         # Pub/Sub uses a GCP service account, not the OAuth user credentials
@@ -42,10 +42,10 @@ class PubSubListener:
         """Process a single Pub/Sub message."""
         try:
             data = json.loads(message.data.decode("utf-8"))
-            event_id, timestamp, event_type = self._extract_event(data)
+            event_id, timestamp, event_type, device_id = self._extract_event(data)
             if event_id:
                 logger.info("Camera event [%s]: %s at %s", event_type, event_id, timestamp)
-                self._on_camera_event(event_id, timestamp, event_type)
+                self._on_camera_event(event_id, timestamp, event_type, device_id)
             else:
                 # Log non-trigger events for debugging
                 event_types = list(data.get("resourceUpdate", {}).get("events", {}).keys())
@@ -58,14 +58,15 @@ class PubSubListener:
 
     def _extract_event(
         self, data: dict
-    ) -> tuple[str | None, datetime | None, str | None]:
-        """Extract event ID, timestamp, and type from any trigger event."""
+    ) -> tuple[str | None, datetime | None, str | None, str | None]:
+        """Extract event ID, timestamp, type, and device ID from any trigger event."""
         resource_update = data.get("resourceUpdate", {})
 
-        # Only process events for our camera
+        # Only process events for configured cameras
         device_id = resource_update.get("name", "")
-        if settings.camera_device_id and device_id != settings.camera_device_id:
-            return None, None, None
+        allowed_ids = settings.get_camera_ids()
+        if allowed_ids and device_id not in allowed_ids:
+            return None, None, None, None
 
         events = resource_update.get("events", {})
 
@@ -80,9 +81,9 @@ class PubSubListener:
                     if timestamp_str
                     else datetime.now()
                 )
-                return event_id, timestamp, event_type
+                return event_id, timestamp, event_type, device_id
 
-        return None, None, None
+        return None, None, None, None
 
     def start(self):
         """Start listening for events (blocking)."""

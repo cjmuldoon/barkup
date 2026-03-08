@@ -73,8 +73,10 @@ class TelegramBot:
         local_time = local_start.strftime("%I:%M:%S %p")
         confidence_pct = episode.peak_confidence * 100
 
+        cam_line = f"📷 Camera: {episode.camera_name}\n" if episode.camera_name else ""
         text = (
             f"🐕 *Bark Detected*\n\n"
+            f"{cam_line}"
             f"⏰ Time: {local_time}\n"
             f"⏱ Duration: {dur_str}\n"
             f"📊 Confidence: {confidence_pct:.0f}%\n"

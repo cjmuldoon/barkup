@@ -28,6 +28,7 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
 - 📝 **Nightly Summary** — Daily report at 8pm with total episodes, duration, and stats. Evidence, served fresh.
 - 🔗 **Nest Cam Links** — Jump straight to the camera footage for any event.
+- 📷 **Multi-Camera Support** — Monitor multiple Nest Cams with friendly names. Each bark is tagged to the camera that heard it.
 
 ## Architecture
 

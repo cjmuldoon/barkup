@@ -21,8 +21,9 @@ EXTEND_INTERVAL = 270
 
 
 class RTSPStream:
-    def __init__(self, sdm_client: SDMClient):
+    def __init__(self, sdm_client: SDMClient, device_id: str):
         self._sdm = sdm_client
+        self._device_id = device_id
         self._process: subprocess.Popen | None = None
         self._stream_token: str | None = None
         self._extend_timer: threading.Timer | None = None
@@ -31,7 +32,7 @@ class RTSPStream:
 
     def start(self) -> None:
         """Start RTSP stream and ffmpeg audio extraction."""
-        result = self._sdm.generate_rtsp_stream()
+        result = self._sdm.generate_rtsp_stream(self._device_id)
         rtsp_url = result["streamUrls"]["rtspUrl"]
         self._stream_token = result["streamExtensionToken"]
         self._active = True
@@ -59,7 +60,7 @@ class RTSPStream:
         if not self._stream_token:
             return
         # Get a fresh RTSP URL for the recorder
-        result = self._sdm.generate_rtsp_stream()
+        result = self._sdm.generate_rtsp_stream(self._device_id)
         rtsp_url = result["streamUrls"]["rtspUrl"]
 
         cmd = [
@@ -106,7 +107,7 @@ class RTSPStream:
         if not self._active or not self._stream_token:
             return
         try:
-            result = self._sdm.extend_rtsp_stream(self._stream_token)
+            result = self._sdm.extend_rtsp_stream(self._device_id, self._stream_token)
             self._stream_token = result.get("streamExtensionToken", self._stream_token)
             logger.info("RTSP stream extended")
             self._schedule_extend()
@@ -128,7 +129,7 @@ class RTSPStream:
             self._recording_process = None
         if self._stream_token:
             try:
-                self._sdm.stop_rtsp_stream(self._stream_token)
+                self._sdm.stop_rtsp_stream(self._device_id, self._stream_token)
             except Exception:
                 logger.exception("Failed to stop RTSP stream via API")
             self._stream_token = None

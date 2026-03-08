@@ -25,9 +25,9 @@ class SDMClient:
         resp.raise_for_status()
         return resp.json().get("devices", [])
 
-    def generate_rtsp_stream(self) -> dict:
+    def generate_rtsp_stream(self, device_id: str) -> dict:
         """Request an RTSP stream URL. Returns {streamUrls, streamToken, expiresAt}."""
-        url = f"{SDM_BASE}/{settings.camera_device_id}:executeCommand"
+        url = f"{SDM_BASE}/{device_id}:executeCommand"
         body = {
             "command": "sdm.devices.commands.CameraLiveStream.GenerateRtspStream",
             "params": {},
@@ -36,9 +36,9 @@ class SDMClient:
         resp.raise_for_status()
         return resp.json().get("results", {})
 
-    def extend_rtsp_stream(self, stream_token: str) -> dict:
+    def extend_rtsp_stream(self, device_id: str, stream_token: str) -> dict:
         """Extend an active RTSP stream. Returns new {streamToken, expiresAt}."""
-        url = f"{SDM_BASE}/{settings.camera_device_id}:executeCommand"
+        url = f"{SDM_BASE}/{device_id}:executeCommand"
         body = {
             "command": "sdm.devices.commands.CameraLiveStream.ExtendRtspStream",
             "params": {"streamExtensionToken": stream_token},
@@ -47,9 +47,9 @@ class SDMClient:
         resp.raise_for_status()
         return resp.json().get("results", {})
 
-    def stop_rtsp_stream(self, stream_token: str) -> None:
+    def stop_rtsp_stream(self, device_id: str, stream_token: str) -> None:
         """Stop an active RTSP stream."""
-        url = f"{SDM_BASE}/{settings.camera_device_id}:executeCommand"
+        url = f"{SDM_BASE}/{device_id}:executeCommand"
         body = {
             "command": "sdm.devices.commands.CameraLiveStream.StopRtspStream",
             "params": {"streamExtensionToken": stream_token},
@@ -57,9 +57,9 @@ class SDMClient:
         resp = self._client.post(url, headers=self._headers(), json=body)
         resp.raise_for_status()
 
-    def generate_image(self, event_id: str) -> dict:
+    def generate_image(self, device_id: str, event_id: str) -> dict:
         """Get a snapshot image for an event. Returns {url, token}."""
-        url = f"{SDM_BASE}/{settings.camera_device_id}:executeCommand"
+        url = f"{SDM_BASE}/{device_id}:executeCommand"
         body = {
             "command": "sdm.devices.commands.CameraEventImage.GenerateImage",
             "params": {"eventId": event_id},

@@ -31,3 +31,4 @@ class Episode(BaseModel):
     clip_path: str | None = None
     clip_url: str | None = None
     nest_link: str | None = None
+    camera_name: str | None = None
