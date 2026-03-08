@@ -38,11 +38,13 @@ class BarkClassifier:
     def _load_model(self):
         """Load YAMNet TFLite model."""
         try:
-            from tflite_runtime.interpreter import Interpreter
+            from ai_edge_litert import Interpreter
         except ImportError:
-            # Fallback for macOS ARM where tflite-runtime isn't available
-            import tensorflow as tf
-            Interpreter = tf.lite.Interpreter
+            try:
+                from tflite_runtime.interpreter import Interpreter
+            except ImportError:
+                import tensorflow as tf
+                Interpreter = tf.lite.Interpreter
 
         self._interpreter = Interpreter(model_path=MODEL_PATH)
         self._interpreter.allocate_tensors()

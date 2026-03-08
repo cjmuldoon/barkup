@@ -1,9 +1,10 @@
 #!/bin/bash
-# Deploy barkup to a DigitalOcean droplet
+# Deploy barkup to DigitalOcean droplet via GitHub
 set -e
 
 SERVER="root@170.64.154.41"
 APP_DIR="/opt/barkup"
+REPO="https://github.com/cjmuldoon/barkup.git"
 
 echo "=== Setting up server ==="
 ssh $SERVER 'bash -s' << 'SETUP'
@@ -21,22 +22,25 @@ if ! docker compose version &> /dev/null; then
     apt-get update && apt-get install -y docker-compose-plugin
 fi
 
-# Create app directory
+# Install git if not present
+if ! command -v git &> /dev/null; then
+    apt-get update && apt-get install -y git
+fi
+
 mkdir -p /opt/barkup/clips
 SETUP
 
-echo "=== Copying project files ==="
-rsync -avz --exclude '.env' \
-    --exclude 'clips/' \
-    --exclude '__pycache__' \
-    --exclude '.venv' \
-    --exclude '*.pyc' \
-    --exclude '.git' \
-    -e ssh \
-    /Users/dunderdoon/Projects_Local/barkup/ \
-    $SERVER:$APP_DIR/
+echo "=== Cloning/pulling repo ==="
+ssh $SERVER "bash -s" << PULL
+if [ -d $APP_DIR/.git ]; then
+    cd $APP_DIR && git pull
+else
+    rm -rf $APP_DIR
+    git clone $REPO $APP_DIR
+fi
+PULL
 
-echo "=== Copying .env ==="
+echo "=== Copying .env (secrets not in repo) ==="
 scp /Users/dunderdoon/Projects_Local/barkup/.env $SERVER:$APP_DIR/.env
 
 echo "=== Building and starting ==="

@@ -8,7 +8,7 @@ dependencies = [
     "google-cloud-pubsub>=2.23",
     "google-auth>=2.35",
     "google-auth-oauthlib>=1.2",
-    "tflite-runtime>=2.14; platform_machine != 'arm64' or platform_system != 'Darwin'",
+    "ai-edge-litert>=1.0; platform_machine != 'arm64' or platform_system != 'Darwin'",
     "tensorflow>=2.14; platform_machine == 'arm64' and platform_system == 'Darwin'",
     "numpy>=1.26",
     "notion-client>=2.2",
