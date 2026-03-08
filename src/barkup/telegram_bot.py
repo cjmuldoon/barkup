@@ -213,6 +213,118 @@ class TelegramBot:
 
         return result
 
+    def _parse_summary_range(self, text: str) -> tuple[str, str, str] | None:
+        """Parse a summary command into (start_date, end_date, label).
+
+        Returns None if text is not a summary command.
+        Dates are YYYY-MM-DD strings. end_date is exclusive (day after last day).
+        """
+        tz = ZoneInfo(settings.timezone)
+        now = datetime.now(tz)
+        text_lower = text.lower().strip()
+
+        if not text_lower.startswith("summary"):
+            return None
+
+        arg = text_lower[len("summary"):].strip()
+
+        if not arg or arg == "today":
+            start = now.strftime("%Y-%m-%d")
+            end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+            return start, end, now.strftime("%A, %B %d")
+
+        if arg == "yesterday":
+            yesterday = now - timedelta(days=1)
+            start = yesterday.strftime("%Y-%m-%d")
+            end = now.strftime("%Y-%m-%d")
+            return start, end, yesterday.strftime("%A, %B %d")
+
+        if arg == "last week":
+            # Last 7 days
+            start_dt = now - timedelta(days=7)
+            start = start_dt.strftime("%Y-%m-%d")
+            end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+            return start, end, f"{start_dt.strftime('%b %d')} – {now.strftime('%b %d')}"
+
+        if arg == "this week":
+            # Monday to today
+            monday = now - timedelta(days=now.weekday())
+            start = monday.strftime("%Y-%m-%d")
+            end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+            return start, end, f"{monday.strftime('%b %d')} – {now.strftime('%b %d')}"
+
+        # Try parsing a specific date
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%B %d", "%b %d", "%d %B", "%d %b"):
+            try:
+                parsed = datetime.strptime(arg, fmt)
+                # If no year in format, assume current year
+                if parsed.year == 1900:
+                    parsed = parsed.replace(year=now.year)
+                start = parsed.strftime("%Y-%m-%d")
+                end = (parsed + timedelta(days=1)).strftime("%Y-%m-%d")
+                return start, end, parsed.strftime("%A, %B %d")
+            except ValueError:
+                continue
+
+        return None
+
+    def send_range_summary(self, episodes: list[dict], label: str, is_range: bool = False):
+        """Send a summary for a date range."""
+        tz = ZoneInfo(settings.timezone)
+
+        if not episodes:
+            text = (
+                f"📋 *Bark Summary — {label}*\n\n"
+                f"✅ No barking episodes detected! Good boy! 🐕"
+            )
+        else:
+            total_bark_time = sum(e["bark_time_seconds"] for e in episodes)
+            total_barks = sum(e["bark_count"] for e in episodes)
+            if total_bark_time >= 60:
+                total_str = f"{total_bark_time / 60:.0f}m {total_bark_time % 60:.0f}s"
+            else:
+                total_str = f"{total_bark_time:.0f}s"
+
+            longest = max(episodes, key=lambda e: e["duration_seconds"])
+            longest_dur = longest["duration_seconds"]
+            if longest_dur >= 60:
+                longest_str = f"{longest_dur / 60:.0f}m {longest_dur % 60:.0f}s"
+            else:
+                longest_str = f"{longest_dur:.0f}s"
+
+            longest_time = longest["start_time"]
+            longest_time_str = longest_time.astimezone(tz).strftime("%I:%M %p %a") if is_range else longest_time.astimezone(tz).strftime("%I:%M %p")
+            if not longest_time.tzinfo:
+                longest_time_str = longest_time.strftime("%I:%M %p")
+
+            text = (
+                f"📋 *Bark Summary — {label}*\n\n"
+                f"📊 Total episodes: {len(episodes)}\n"
+                f"🐕 Total barks: {total_barks}\n"
+                f"⏱ Total bark time: {total_str}\n"
+                f"🔝 Longest episode: {longest_str} at {longest_time_str}\n\n"
+            )
+
+            for i, ep in enumerate(episodes, 1):
+                ep_time = ep["start_time"]
+                if ep_time.tzinfo:
+                    time_str = ep_time.astimezone(tz).strftime("%I:%M %p %a") if is_range else ep_time.astimezone(tz).strftime("%I:%M %p")
+                else:
+                    time_str = ep_time.strftime("%I:%M %p")
+                ep_dur = f"{ep['duration_seconds']:.0f}s"
+                if ep["duration_seconds"] >= 60:
+                    ep_dur = f"{ep['duration_seconds'] / 60:.0f}m"
+                bark_info = f"{ep['bark_count']} barks" if ep["bark_count"] else ep_dur
+                cam = f" [{ep['camera']}]" if ep.get("camera") else ""
+                text += f"{i}. {time_str} — {ep['bark_type']}{cam} ({bark_info})\n"
+
+        self._send(
+            "sendMessage",
+            chat_id=self._chat_id,
+            text=text,
+            parse_mode="Markdown",
+        )
+
     def _process_update(self, update: dict):
         """Process a single Telegram update."""
         message = update.get("message", {})
@@ -222,10 +334,20 @@ class TelegramBot:
         if not user_id or not self._is_authorized(user_id):
             return
 
-        # Check if it's a reply to one of our notifications
+        text = message.get("text", "")
+
+        # Check for summary command (not a reply)
         reply_to = message.get("reply_to_message", {})
         reply_msg_id = reply_to.get("message_id")
-        text = message.get("text", "")
+
+        if not reply_msg_id and self._notion:
+            summary_range = self._parse_summary_range(text)
+            if summary_range:
+                start_date, end_date, label = summary_range
+                is_range = start_date != (datetime.now(ZoneInfo(settings.timezone))).strftime("%Y-%m-%d") or "–" in label
+                episodes = self._notion.get_episodes_for_range(start_date, end_date)
+                self.send_range_summary(episodes, label, is_range="–" in label)
+                return
 
         if reply_msg_id and self._notion:
             # Look up the Notion page by the Telegram message ID

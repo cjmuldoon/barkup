@@ -190,13 +190,13 @@ class BarkupOrchestrator:
 
             # Start nightly summary scheduler
             from barkup.scheduler import DailyScheduler
-            summary_time = dt_time(settings.summary_hour, 0)
+            summary_time = dt_time(settings.summary_hour, settings.summary_minute)
             self._scheduler = DailyScheduler(
                 target_time=summary_time,
                 callback=self._send_nightly_summary,
             )
             self._scheduler.start()
-            logger.info("Nightly summary scheduled for %s:00", settings.summary_hour)
+            logger.info("Nightly summary scheduled for %s:%02d", settings.summary_hour, settings.summary_minute)
         else:
             logger.info("Telegram not configured, notifications disabled")
 

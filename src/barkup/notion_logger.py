@@ -1,7 +1,7 @@
 """Logs bark episodes to Notion database."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -158,18 +158,41 @@ class NotionLogger:
             return pages[0]["id"]
         return None
 
+    def get_episodes_for_range(self, start_date: str, end_date: str | None = None) -> list[dict]:
+        """Query bark episodes for a date range.
+
+        Args:
+            start_date: ISO date string (YYYY-MM-DD) for range start.
+            end_date: Optional ISO date string for range end (exclusive next day).
+                      If None, queries from start_date onwards.
+        """
+        if end_date:
+            filter = {
+                "and": [
+                    {"property": "Date/Time", "date": {"on_or_after": start_date}},
+                    {"property": "Date/Time", "date": {"before": end_date}},
+                ]
+            }
+        else:
+            filter = {
+                "property": "Date/Time",
+                "date": {"on_or_after": start_date},
+            }
+
+        result = self._query_database(
+            filter=filter,
+            sorts=[{"property": "Date/Time", "direction": "ascending"}],
+        )
+        return self._parse_episodes(result)
+
     def get_today_episodes(self) -> list[dict]:
         """Query today's bark episodes from Notion for the nightly summary."""
         tz = ZoneInfo(settings.timezone)
         today = datetime.now(tz).strftime("%Y-%m-%d")
+        tomorrow = (datetime.now(tz) + timedelta(days=1)).strftime("%Y-%m-%d")
+        return self.get_episodes_for_range(today, tomorrow)
 
-        result = self._query_database(
-            filter={
-                "property": "Date/Time",
-                "date": {"on_or_after": today},
-            },
-            sorts=[{"property": "Date/Time", "direction": "ascending"}],
-        )
+    def _parse_episodes(self, result: list[dict]) -> list[dict]:
 
         episodes = []
         for page in result:

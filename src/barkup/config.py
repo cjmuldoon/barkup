@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     telegram_chat_id: str | None = None
     telegram_allowed_users: str | None = None  # Comma-separated user IDs
     summary_hour: int = 20  # 8pm local time
+    summary_minute: int = 30
     timezone: str = "Australia/Adelaide"
 
     # Clip storage
