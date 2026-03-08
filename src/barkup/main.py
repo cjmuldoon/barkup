@@ -61,11 +61,6 @@ class BarkupOrchestrator:
         camera_name = settings.get_camera_name(device_id)
         logger.info("Camera event received [%s] from %s: %s", event_type, camera_name, event_id)
 
-        # Only process Sound events — Motion/Person don't reliably have audio
-        if "Sound" not in event_type:
-            logger.info("Ignoring non-sound event: %s", event_type)
-            return
-
         # Cooldown: skip if we just processed an event
         now = datetime.now()
         if self._last_event_time:
