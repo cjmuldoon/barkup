@@ -8,20 +8,24 @@ from datetime import datetime
 from google.cloud import pubsub_v1
 
 from barkup.config import settings
-from barkup.google_auth import get_credentials
 
 logger = logging.getLogger(__name__)
 
-SOUND_EVENT_TYPE = "sdm.devices.events.CameraSound.Sound"
+# Event types that should trigger audio analysis
+TRIGGER_EVENT_TYPES = [
+    "sdm.devices.events.CameraSound.Sound",
+    "sdm.devices.events.CameraMotion.Motion",
+    "sdm.devices.events.CameraPerson.Person",
+]
 
 
 class PubSubListener:
-    def __init__(self, on_sound_event: Callable[[str, datetime], None]):
+    def __init__(self, on_camera_event: Callable[[str, datetime, str], None]):
         """
         Args:
-            on_sound_event: Callback with (event_id, event_timestamp) when sound detected.
+            on_camera_event: Callback with (event_id, event_timestamp, event_type).
         """
-        self._on_sound_event = on_sound_event
+        self._on_camera_event = on_camera_event
         # Pub/Sub uses a GCP service account, not the OAuth user credentials
         if settings.google_application_credentials:
             self._subscriber = pubsub_v1.SubscriberClient.from_service_account_json(
@@ -38,47 +42,52 @@ class PubSubListener:
         """Process a single Pub/Sub message."""
         try:
             data = json.loads(message.data.decode("utf-8"))
-            # Log all incoming events for debugging
-            event_types = list(data.get("resourceUpdate", {}).get("events", {}).keys())
-            logger.info("Pub/Sub event received: %s", event_types or data.get("resourceUpdate", {}).get("traits", {}).keys() or "unknown")
-            event_id, timestamp = self._extract_sound_event(data)
+            event_id, timestamp, event_type = self._extract_event(data)
             if event_id:
-                logger.info("Sound event: %s at %s", event_id, timestamp)
-                self._on_sound_event(event_id, timestamp)
+                logger.info("Camera event [%s]: %s at %s", event_type, event_id, timestamp)
+                self._on_camera_event(event_id, timestamp, event_type)
+            else:
+                # Log non-trigger events for debugging
+                event_types = list(data.get("resourceUpdate", {}).get("events", {}).keys())
+                if event_types:
+                    logger.debug("Ignored event types: %s", event_types)
         except Exception:
             logger.exception("Error processing Pub/Sub message")
         finally:
             message.ack()
 
-    def _extract_sound_event(
+    def _extract_event(
         self, data: dict
-    ) -> tuple[str | None, datetime | None]:
-        """Extract sound event ID and timestamp from SDM event payload."""
-        # SDM event structure: resourceUpdate.events."sdm.devices.events.CameraSound.Sound"
+    ) -> tuple[str | None, datetime | None, str | None]:
+        """Extract event ID, timestamp, and type from any trigger event."""
         resource_update = data.get("resourceUpdate", {})
 
         # Only process events for our camera
         device_id = resource_update.get("name", "")
         if settings.camera_device_id and device_id != settings.camera_device_id:
-            return None, None
+            return None, None, None
 
         events = resource_update.get("events", {})
-        sound_event = events.get(SOUND_EVENT_TYPE)
-        if not sound_event:
-            return None, None
 
-        event_id = sound_event.get("eventId")
-        timestamp_str = data.get("timestamp")
-        timestamp = (
-            datetime.fromisoformat(timestamp_str)
-            if timestamp_str
-            else datetime.now()
-        )
-        return event_id, timestamp
+        # Check each trigger event type
+        for event_type in TRIGGER_EVENT_TYPES:
+            event_data = events.get(event_type)
+            if event_data:
+                event_id = event_data.get("eventId")
+                timestamp_str = data.get("timestamp")
+                timestamp = (
+                    datetime.fromisoformat(timestamp_str)
+                    if timestamp_str
+                    else datetime.now()
+                )
+                return event_id, timestamp, event_type
+
+        return None, None, None
 
     def start(self):
         """Start listening for events (blocking)."""
         logger.info("Listening for events on %s", self._subscription_path)
+        logger.info("Trigger event types: %s", [t.split('.')[-1] for t in TRIGGER_EVENT_TYPES])
         self._streaming_pull_future = self._subscriber.subscribe(
             self._subscription_path, callback=self._handle_message
         )

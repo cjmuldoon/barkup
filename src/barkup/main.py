@@ -34,6 +34,8 @@ class BarkupOrchestrator:
         self._telegram = TelegramBot(on_intervention=self._handle_intervention)
         self._processing = False
         self._lock = threading.Lock()
+        self._last_event_time: datetime | None = None
+        self._event_cooldown = 10  # Ignore events within 10s of last one
         # Track today's episodes for nightly summary
         self._today_episodes: list = []
         self._today_date = datetime.now().date()
@@ -68,9 +70,18 @@ class BarkupOrchestrator:
         self._telegram.send_nightly_summary(episodes)
         logger.info("Nightly summary sent: %d episodes", len(episodes))
 
-    def _on_sound_event(self, event_id: str, timestamp: datetime):
-        """Called by PubSub listener when a sound event arrives."""
-        logger.info("Sound event received: %s", event_id)
+    def _on_camera_event(self, event_id: str, timestamp: datetime, event_type: str):
+        """Called by PubSub listener when a camera event arrives."""
+        logger.info("Camera event received [%s]: %s", event_type, event_id)
+
+        # Cooldown: skip if we just processed an event
+        now = datetime.now()
+        if self._last_event_time:
+            elapsed = (now - self._last_event_time).total_seconds()
+            if elapsed < self._event_cooldown:
+                logger.info("Skipping event (%.0fs since last, cooldown=%ds)", elapsed, self._event_cooldown)
+                return
+        self._last_event_time = now
 
         # Fetch snapshot immediately (30s expiry)
         from barkup.snapshot import fetch_snapshot
@@ -196,7 +207,7 @@ class BarkupOrchestrator:
             logger.info("Telegram not configured, notifications disabled")
 
         from barkup.pubsub_listener import PubSubListener
-        listener = PubSubListener(on_sound_event=self._on_sound_event)
+        listener = PubSubListener(on_camera_event=self._on_camera_event)
         listener.start()
 
 
