@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # Telegram
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    telegram_allowed_users: str | None = None  # Comma-separated user IDs
     summary_hour: int = 20  # 8pm
 
     # Clip storage

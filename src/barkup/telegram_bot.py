@@ -28,6 +28,13 @@ class TelegramBot:
         self._base_url = TELEGRAM_API.format(token=self._token)
         self._client = httpx.Client(timeout=30)
         self._on_intervention = on_intervention
+        # Allowed user IDs (owner + anyone they add)
+        allowed = settings.telegram_allowed_users
+        self._allowed_users: set[str] = set()
+        if allowed:
+            self._allowed_users = {uid.strip() for uid in allowed.split(",")}
+        if self._chat_id:
+            self._allowed_users.add(str(self._chat_id))
         self._poll_thread = None
         self._running = False
         # Track message_id -> notion_page_id for reply handling
@@ -49,8 +56,8 @@ class TelegramBot:
             logger.exception("Telegram API error: %s", method)
             return None
 
-    def _is_authorized(self, chat_id: int) -> bool:
-        return str(chat_id) == str(self._chat_id)
+    def _is_authorized(self, user_id: int) -> bool:
+        return str(user_id) in self._allowed_users
 
     def send_bark_notification(self, episode: Episode, notion_page_id: str = None) -> int | None:
         """Send a bark episode notification. Returns the message ID."""
@@ -75,11 +82,8 @@ class TelegramBot:
             text += f"\n[View in Nest]({episode.nest_link})"
 
         text += (
-            f"\n\n_Reply to log intervention:_\n"
-            f"`home` - Mark that you were home\n"
-            f"`intervened` - Mark that you intervened\n"
-            f"`reason: <text>` - Set the reason\n"
-            f"_Combine: `home, intervened, reason: mailman`_"
+            f"\n\n_Reply to update:_\n"
+            f"e.g. `home, intervened, it was the mailman`"
         )
 
         result = self._send(
@@ -144,22 +148,53 @@ class TelegramBot:
         )
 
     def _parse_reply(self, text: str) -> dict:
-        """Parse user reply into intervention fields."""
+        """Parse user reply into intervention fields.
+
+        Very flexible — just looks for keywords anywhere in the message.
+        Examples that all work:
+            "home"
+            "I was home and intervened"
+            "yes I was home, it was the mailman"
+            "home, intervened, reason: stranger at door"
+            "intervened - doorbell"
+            "boredom"
+        """
         text_lower = text.lower().strip()
         result = {}
 
+        # Check for "home" / "was home"
         if "home" in text_lower:
             result["was_home"] = True
-        if "intervened" in text_lower or "intervene" in text_lower:
+
+        # Check for intervention
+        intervene_words = ["intervene", "stopped", "told him", "told her",
+                          "quieted", "calmed", "shushed", "went out"]
+        if any(word in text_lower for word in intervene_words):
             result["intervened"] = True
 
-        # Parse reason
-        for prefix in ["reason:", "reason :"]:
+        # Check for explicit "reason:" prefix
+        for prefix in ["reason:", "reason :", "because ", "it was "]:
             if prefix in text_lower:
                 reason_text = text[text_lower.index(prefix) + len(prefix):].strip()
-                # Strip trailing comma-separated parts that aren't the reason
-                reason_text = reason_text.split(",")[0].strip() if "," in reason_text else reason_text
+                reason_text = reason_text.rstrip(".,!").strip()
                 result["reason"] = reason_text
+                return result
+
+        # Check for known reason keywords directly
+        reason_keywords = {
+            "stranger": "Stranger", "someone": "Stranger", "person": "Stranger",
+            "delivery": "Stranger", "postman": "Stranger", "mailman": "Stranger",
+            "animal": "Animal", "cat": "Animal", "dog": "Animal", "bird": "Animal",
+            "squirrel": "Animal", "possum": "Animal",
+            "bored": "Boredom", "boredom": "Boredom", "nothing": "Boredom",
+            "anxious": "Anxiety", "anxiety": "Anxiety", "scared": "Anxiety",
+            "separation": "Anxiety",
+            "doorbell": "Doorbell", "door": "Doorbell", "knock": "Doorbell",
+            "ring": "Doorbell",
+        }
+        for keyword, reason in reason_keywords.items():
+            if keyword in text_lower:
+                result["reason"] = reason
                 break
 
         return result
@@ -167,9 +202,10 @@ class TelegramBot:
     def _process_update(self, update: dict):
         """Process a single Telegram update."""
         message = update.get("message", {})
+        user_id = message.get("from", {}).get("id")
         chat_id = message.get("chat", {}).get("id")
 
-        if not chat_id or not self._is_authorized(chat_id):
+        if not user_id or not self._is_authorized(user_id):
             return
 
         # Check if it's a reply to one of our notifications
