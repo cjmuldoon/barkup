@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+import httpx
 from notion_client import Client
 
 from barkup.config import settings
@@ -11,11 +12,23 @@ from barkup.models import Episode
 
 logger = logging.getLogger(__name__)
 
+NOTION_API = "https://api.notion.com/v1"
+NOTION_VERSION = "2022-06-28"
+
 
 class NotionLogger:
     def __init__(self):
         self._client = Client(auth=settings.notion_api_key)
         self._database_id = settings.notion_database_id
+        self._http = httpx.Client(
+            base_url=NOTION_API,
+            headers={
+                "Authorization": f"Bearer {settings.notion_api_key}",
+                "Notion-Version": NOTION_VERSION,
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
 
     def log_episode(self, episode: Episode) -> str:
         """
@@ -120,17 +133,27 @@ class NotionLogger:
             properties={"Telegram Message ID": {"number": message_id}},
         )
 
+    def _query_database(self, filter: dict, sorts: list | None = None, page_size: int = 100) -> list[dict]:
+        """Query the Notion database using the REST API directly."""
+        body = {"filter": filter, "page_size": page_size}
+        if sorts:
+            body["sorts"] = sorts
+        resp = self._http.post(
+            f"/databases/{self._database_id}/query",
+            json=body,
+        )
+        resp.raise_for_status()
+        return resp.json().get("results", [])
+
     def find_page_by_message_id(self, message_id: int) -> str | None:
         """Look up a Notion page by its Telegram message ID."""
-        result = self._client.databases.query(
-            database_id=self._database_id,
+        pages = self._query_database(
             filter={
                 "property": "Telegram Message ID",
                 "number": {"equals": message_id},
             },
             page_size=1,
         )
-        pages = result.get("results", [])
         if pages:
             return pages[0]["id"]
         return None
@@ -140,8 +163,7 @@ class NotionLogger:
         tz = ZoneInfo(settings.timezone)
         today = datetime.now(tz).strftime("%Y-%m-%d")
 
-        result = self._client.databases.query(
-            database_id=self._database_id,
+        result = self._query_database(
             filter={
                 "property": "Date/Time",
                 "date": {"on_or_after": today},
@@ -150,7 +172,7 @@ class NotionLogger:
         )
 
         episodes = []
-        for page in result.get("results", []):
+        for page in result:
             props = page["properties"]
             date_prop = props.get("Date/Time", {}).get("date", {})
             start_str = date_prop.get("start")
