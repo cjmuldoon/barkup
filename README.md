@@ -12,7 +12,9 @@ The letter was a masterclass in passive aggression, meticulously penned in cursi
 
 > *"Your loving neighbour"*
 
-Rather than engage in a handwriting war, we decided to do what any reasonable person would do: build an over-engineered AI surveillance system to prove Karen wrong with cold, hard data. Eddie deserves justice. Shadow deserves the letter.
+My wife's first instinct was to slap a shock collar on Eddie Dean. No trial. No evidence review. No due process. Just straight to the electric chair based on the uncorroborated testimony of one anonymous cursive enthusiast. Eddie's own mother was ready to turn on him.
+
+Rather than electrocute the family dog on Karen's say-so, we decided to do what any reasonable person would do: build an over-engineered AI surveillance system to prove Karen wrong with cold, hard data. Eddie deserves justice. Shadow deserves the letter. And my wife owes Eddie an apology.
 
 ## What It Does
 
