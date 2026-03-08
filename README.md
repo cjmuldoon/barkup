@@ -26,7 +26,7 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - 📊 **Confidence Scoring** — How confident the AI is that it was actually a bark and not, say, 60 people gasping in horror.
 - 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply naturally to log if you were home, intervened, or note the reason.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
-- 📝 **Nightly Summary** — Daily report at 8pm with total episodes, duration, and stats. Evidence, served fresh.
+- 📝 **Daily & On-Demand Summaries** — Nightly report at 8:30pm, or message the bot anytime: `summary`, `summary yesterday`, `summary last week`, `summary this week`, or `summary March 5`. Evidence on demand.
 - 🔗 **Nest Cam Links** — Jump straight to the camera footage for any event.
 - 📷 **Multi-Camera Support** — Monitor multiple Nest Cams with friendly names. Each bark is tagged to the camera that heard it.
 
@@ -81,10 +81,17 @@ bash scripts/deploy.sh
 
 ## Telegram Commands
 
-Reply to any bark notification naturally:
+**Reply to any bark notification naturally:**
 - `home` — you were home
 - `I was home and intervened, it was the mailman` — all parsed automatically
 - `doorbell` / `stranger` / `cat` / `boredom` — auto-detected reasons
+
+**On-demand summaries (send as a new message, not a reply):**
+- `summary` — today's summary
+- `summary yesterday` — yesterday's summary
+- `summary last week` — last 7 days
+- `summary this week` — Monday to today
+- `summary 2026-03-05` or `summary March 5` — specific date
 
 ## The Verdict
 
