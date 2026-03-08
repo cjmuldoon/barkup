@@ -1,5 +1,6 @@
 """Telegram bot for bark notifications and intervention tracking."""
 
+import calendar
 import logging
 import threading
 import time
@@ -240,24 +241,59 @@ class TelegramBot:
             return start, end, yesterday.strftime("%A, %B %d")
 
         if arg == "last week":
-            # Last 7 days
-            start_dt = now - timedelta(days=7)
-            start = start_dt.strftime("%Y-%m-%d")
-            end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-            return start, end, f"{start_dt.strftime('%b %d')} – {now.strftime('%b %d')}"
+            # Previous Mon–Sun
+            this_monday = now - timedelta(days=now.weekday())
+            last_monday = this_monday - timedelta(days=7)
+            last_sunday = this_monday - timedelta(days=1)
+            start = last_monday.strftime("%Y-%m-%d")
+            end = this_monday.strftime("%Y-%m-%d")
+            return start, end, f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d')}"
 
         if arg == "this week":
-            # Monday to today
+            # Monday to today (inclusive)
             monday = now - timedelta(days=now.weekday())
             start = monday.strftime("%Y-%m-%d")
             end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
             return start, end, f"{monday.strftime('%b %d')} – {now.strftime('%b %d')}"
 
+        if arg == "this month":
+            first = now.replace(day=1)
+            start = first.strftime("%Y-%m-%d")
+            end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+            return start, end, now.strftime("%B %Y")
+
+        if arg == "last month":
+            first_this_month = now.replace(day=1)
+            last_month_end = first_this_month - timedelta(days=1)
+            first_last_month = last_month_end.replace(day=1)
+            start = first_last_month.strftime("%Y-%m-%d")
+            end = first_this_month.strftime("%Y-%m-%d")
+            return start, end, first_last_month.strftime("%B %Y")
+
+        # Try a year (e.g. "2026")
+        if arg.isdigit() and len(arg) == 4:
+            year = int(arg)
+            start = f"{year}-01-01"
+            end = f"{year + 1}-01-01"
+            return start, end, str(year)
+
+        # Try a month name (e.g. "march", "march 2026", "feb")
+        for month_fmt in ("%B %Y", "%b %Y", "%B", "%b"):
+            try:
+                parsed = datetime.strptime(arg, month_fmt)
+                if parsed.year == 1900:
+                    parsed = parsed.replace(year=now.year)
+                last_day = calendar.monthrange(parsed.year, parsed.month)[1]
+                start = parsed.strftime("%Y-%m-%d")
+                end = (parsed.replace(day=last_day) + timedelta(days=1)).strftime("%Y-%m-%d")
+                return start, end, parsed.strftime("%B %Y")
+            except ValueError:
+                continue
+
         # Try parsing a specific date
         for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%B %d", "%b %d", "%d %B", "%d %b"):
             try:
                 parsed = datetime.strptime(arg, fmt)
-                # If no year in format, assume current year
                 if parsed.year == 1900:
                     parsed = parsed.replace(year=now.year)
                 start = parsed.strftime("%Y-%m-%d")

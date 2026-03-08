@@ -89,8 +89,11 @@ bash scripts/deploy.sh
 **On-demand summaries (send as a new message, not a reply):**
 - `summary` — today's summary
 - `summary yesterday` — yesterday's summary
-- `summary last week` — last 7 days
 - `summary this week` — Monday to today
+- `summary last week` — previous Mon–Sun
+- `summary this month` / `summary last month` — monthly summary
+- `summary March` or `summary March 2026` — specific month
+- `summary 2026` — full year
 - `summary 2026-03-05` or `summary March 5` — specific date
 
 ## The Verdict
