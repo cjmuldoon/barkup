@@ -1,0 +1,33 @@
+[project]
+name = "barkup"
+version = "0.1.0"
+description = "AI-powered dog bark tracking using Nest Cam and YAMNet"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "google-cloud-pubsub>=2.23",
+    "google-auth>=2.35",
+    "google-auth-oauthlib>=1.2",
+    "tflite-runtime>=2.14; platform_machine != 'arm64' or platform_system != 'Darwin'",
+    "tensorflow>=2.14; platform_machine == 'arm64' and platform_system == 'Darwin'",
+    "numpy>=1.26",
+    "notion-client>=2.2",
+    "pydantic-settings>=2.5",
+    "soundfile>=0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+storage = [
+    "boto3>=1.35",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/barkup"]

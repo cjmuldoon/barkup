@@ -1,0 +1,8 @@
+.env
+clips/
+models/*.tflite
+__pycache__/
+*.pyc
+.venv/
+dist/
+*.egg-info/

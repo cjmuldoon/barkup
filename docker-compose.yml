@@ -1,0 +1,7 @@
+services:
+  barkup:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./clips:/app/clips
