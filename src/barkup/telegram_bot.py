@@ -5,6 +5,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -67,7 +68,9 @@ class TelegramBot:
         else:
             dur_str = f"{duration:.0f}s"
 
-        local_time = episode.start_time.strftime("%I:%M:%S %p")
+        tz = ZoneInfo(settings.timezone)
+        local_start = episode.start_time.astimezone(tz) if episode.start_time.tzinfo else episode.start_time.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+        local_time = local_start.strftime("%I:%M:%S %p")
         confidence_pct = episode.peak_confidence * 100
 
         text = (
@@ -102,7 +105,8 @@ class TelegramBot:
 
     def send_nightly_summary(self, episodes: list[Episode], date: datetime = None):
         """Send the nightly summary at 8pm."""
-        date = date or datetime.now()
+        tz = ZoneInfo(settings.timezone)
+        date = date or datetime.now(tz)
         date_str = date.strftime("%A, %B %d")
 
         if not episodes:
@@ -129,12 +133,12 @@ class TelegramBot:
                 f"📊 Total episodes: {len(episodes)}\n"
                 f"⏱ Total bark time: {total_str}\n"
                 f"🔝 Longest episode: {longest_str} "
-                f"at {longest.start_time.strftime('%I:%M %p')}\n\n"
+                f"at {longest.start_time.astimezone(tz).strftime('%I:%M %p') if longest.start_time.tzinfo else longest.start_time.strftime('%I:%M %p')}\n\n"
             )
 
             # List each episode
             for i, ep in enumerate(episodes, 1):
-                ep_time = ep.start_time.strftime("%I:%M %p")
+                ep_time = ep.start_time.astimezone(tz).strftime("%I:%M %p") if ep.start_time.tzinfo else ep.start_time.strftime("%I:%M %p")
                 ep_dur = f"{ep.duration_seconds:.0f}s"
                 if ep.duration_seconds >= 60:
                     ep_dur = f"{ep.duration_seconds / 60:.0f}m"

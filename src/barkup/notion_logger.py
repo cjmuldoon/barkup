@@ -2,6 +2,7 @@
 
 import logging
 from datetime import timezone
+from zoneinfo import ZoneInfo
 
 from notion_client import Client
 
@@ -21,11 +22,15 @@ class NotionLogger:
         Create a new page in the Notion database for a bark episode.
         Returns the created page URL.
         """
-        start_iso = episode.start_time.astimezone(timezone.utc).isoformat()
-        end_iso = episode.end_time.astimezone(timezone.utc).isoformat()
+        tz = ZoneInfo(settings.timezone)
+        # Ensure timestamps have timezone info
+        start = episode.start_time if episode.start_time.tzinfo else episode.start_time.replace(tzinfo=ZoneInfo("UTC"))
+        end = episode.end_time if episode.end_time.tzinfo else episode.end_time.replace(tzinfo=ZoneInfo("UTC"))
+        start_iso = start.isoformat()
+        end_iso = end.isoformat()
 
-        # Format a readable event title
-        local_time = episode.start_time.strftime("%I:%M %p")
+        # Format a readable event title in local time
+        local_time = start.astimezone(tz).strftime("%I:%M %p")
         duration_min = episode.duration_seconds / 60
         if duration_min >= 1:
             title = f"{episode.dominant_bark_type.value} - {local_time} ({duration_min:.0f}m)"

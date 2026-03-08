@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     telegram_allowed_users: str | None = None  # Comma-separated user IDs
-    summary_hour: int = 20  # 8pm
+    summary_hour: int = 20  # 8pm local time
+    timezone: str = "Australia/Adelaide"
 
     # Clip storage
     clip_storage_path: str = "./clips"
