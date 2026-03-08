@@ -38,6 +38,9 @@ class PubSubListener:
         """Process a single Pub/Sub message."""
         try:
             data = json.loads(message.data.decode("utf-8"))
+            # Log all incoming events for debugging
+            event_types = list(data.get("resourceUpdate", {}).get("events", {}).keys())
+            logger.info("Pub/Sub event received: %s", event_types or data.get("resourceUpdate", {}).get("traits", {}).keys() or "unknown")
             event_id, timestamp = self._extract_sound_event(data)
             if event_id:
                 logger.info("Sound event: %s at %s", event_id, timestamp)
