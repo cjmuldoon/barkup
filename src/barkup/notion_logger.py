@@ -65,6 +65,39 @@ class NotionLogger:
             properties=properties,
         )
 
+        page_id = page.get("id", "")
         page_url = page.get("url", "")
         logger.info("Logged episode to Notion: %s", page_url)
-        return page_url
+        return page_id
+
+    def update_intervention(self, page_id: str, fields: dict):
+        """Update a Notion page with intervention details from Telegram reply."""
+        properties = {}
+
+        if fields.get("was_home"):
+            properties["Owner Home"] = {"checkbox": True}
+        if fields.get("intervened"):
+            properties["Intervened"] = {"checkbox": True}
+        if fields.get("reason"):
+            # Map common reasons to select options
+            reason_map = {
+                "stranger": "Stranger",
+                "animal": "Animal",
+                "boredom": "Boredom",
+                "anxiety": "Anxiety",
+                "doorbell": "Doorbell",
+            }
+            reason_text = fields["reason"].lower()
+            matched = reason_map.get(reason_text, "Other")
+            properties["Reason"] = {"select": {"name": matched}}
+            # Also add the raw reason to notes if it's custom
+            if matched == "Other":
+                properties["Notes"] = {
+                    "rich_text": [
+                        {"text": {"content": f"Reason: {fields['reason']}"}}
+                    ]
+                }
+
+        if properties:
+            self._client.pages.update(page_id=page_id, properties=properties)
+            logger.info("Updated intervention for page %s", page_id)

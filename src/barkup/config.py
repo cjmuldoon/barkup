@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # GCP Service Account (for Pub/Sub)
     google_application_credentials: str | None = None
 
+    # Telegram
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    summary_hour: int = 20  # 8pm
+
     # Clip storage
     clip_storage_path: str = "./clips"
     s3_endpoint: str | None = None
