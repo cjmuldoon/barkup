@@ -47,6 +47,8 @@ class NotionLogger:
                 }
             },
             "Duration (sec)": {"number": episode.duration_seconds},
+            "Bark Time (sec)": {"number": round(episode.bark_frame_count * 0.975, 1)},
+            "Bark Count": {"number": episode.bark_frame_count},
             "Confidence": {"number": episode.peak_confidence},
             "Bark Type": {"select": {"name": episode.dominant_bark_type.value}},
             "Reason": {"select": {"name": "Unknown"}},

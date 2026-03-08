@@ -68,6 +68,12 @@ class TelegramBot:
         else:
             dur_str = f"{duration:.0f}s"
 
+        bark_secs = round(episode.bark_frame_count * 0.975, 1)
+        if bark_secs >= 60:
+            bark_str = f"{bark_secs / 60:.0f}m {bark_secs % 60:.0f}s"
+        else:
+            bark_str = f"{bark_secs:.0f}s"
+
         tz = ZoneInfo(settings.timezone)
         local_start = episode.start_time.astimezone(tz) if episode.start_time.tzinfo else episode.start_time.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
         local_time = local_start.strftime("%I:%M:%S %p")
@@ -78,7 +84,7 @@ class TelegramBot:
             f"🐕 *Bark Detected*\n\n"
             f"{cam_line}"
             f"⏰ Time: {local_time}\n"
-            f"⏱ Duration: {dur_str}\n"
+            f"⏱ Duration: {dur_str} ({bark_str} barking, {episode.bark_frame_count} barks)\n"
             f"📊 Confidence: {confidence_pct:.0f}%\n"
             f"🔊 Type: {episode.dominant_bark_type.value}\n"
         )
