@@ -131,11 +131,21 @@ class RTSPStream:
             self._extend_timer.cancel()
         if self._process:
             self._process.terminate()
-            self._process.wait(timeout=10)
+            try:
+                self._process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                logger.warning("ffmpeg didn't terminate, killing")
+                self._process.kill()
+                self._process.wait(timeout=5)
             self._process = None
         if self._recording_process:
             self._recording_process.terminate()
-            self._recording_process.wait(timeout=10)
+            try:
+                self._recording_process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                logger.warning("Recording ffmpeg didn't terminate, killing")
+                self._recording_process.kill()
+                self._recording_process.wait(timeout=5)
             self._recording_process = None
         if self._stream_token:
             try:
