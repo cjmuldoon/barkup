@@ -50,7 +50,9 @@ class PubSubListener:
                 # Log non-trigger events for debugging
                 event_types = list(data.get("resourceUpdate", {}).get("events", {}).keys())
                 if event_types:
-                    logger.debug("Ignored event types: %s", event_types)
+                    logger.info("Ignored event types: %s", event_types)
+                else:
+                    logger.info("Pub/Sub message with no matching events: %s", list(data.keys()))
         except Exception:
             logger.exception("Error processing Pub/Sub message")
         finally:
