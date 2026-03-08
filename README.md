@@ -4,11 +4,15 @@
 
 ## The Backstory
 
-One fine day, we received a 500-word *handwritten* letter from a neighbour — let's call her Karen — detailing how our dog had allegedly barked for **2 hours straight** and was "impacting at least 60 people." Sixty. Six-zero. Our single, medium-sized dog was apparently causing a noise disturbance of such biblical proportions that it warranted a passive-aggressive novella, meticulously penned in cursive, and lovingly concluded with:
+The accused is **Eddie Dean**, a medium-to-small Groodle and certified Good Boy. Eddie's rap sheet includes: barking at the postman (fair), barking at possums (reasonable), and barking at **Shadow** — the blue-grey cat from two doors down who is, by any objective measure, the *actual* neighbourhood terrorist. Shadow's hobbies include sitting on top of everyone's roofs and tormenting every dog in a three-block radius. Nobody writes Shadow a letter.
+
+One fine day, we received a 500-word *handwritten* letter from a neighbour — let's call her Karen — detailing how Eddie had allegedly barked for **2 hours straight** and was "impacting at least 60 people." Sixty. Six-zero. One Groodle. Sixty victims. We can only assume Karen was out at our gate for the full 2 hours with a clipboard and a stopwatch, which ironically would give Eddie something to bark at.
+
+The letter was a masterclass in passive aggression, meticulously penned in cursive, factually creative, and lovingly concluded with:
 
 > *"Your loving neighbour"*
 
-Rather than engage in a handwriting war, we decided to do what any reasonable person would do: build an over-engineered AI surveillance system to prove Karen wrong with cold, hard data.
+Rather than engage in a handwriting war, we decided to do what any reasonable person would do: build an over-engineered AI surveillance system to prove Karen wrong with cold, hard data. Eddie deserves justice. Shadow deserves the letter.
 
 ## What It Does
 
@@ -41,7 +45,15 @@ Nest Cam → Google Pub/Sub → Start RTSP Stream → ffmpeg Audio Extraction
 
 ## Deployment
 
-Runs on a $6/month DigitalOcean droplet. A small price to pay for vindication.
+We run ours on a $6/month DigitalOcean droplet for convenience. A small price to pay for vindication. But since YAMNet runs happily on CPU and the whole thing idles 99% of the time, you've got plenty of options:
+
+- **Cloud VPS** — DigitalOcean ($6/mo), Hetzner ($3.80/mo), or any cheap VPS with Docker
+- **Home PC / Mac** — if you've got something always on, just `docker compose up -d`
+- **Raspberry Pi 4/5** — more than enough power, perfect for a dedicated bark sentinel
+- **Old laptop in a cupboard** — finally a use for that 2015 MacBook Air
+- **NAS** — Synology/QNAP with Docker support works great
+
+Basically anything that can run Docker and has an internet connection. Eddie's legal defence doesn't require enterprise infrastructure.
 
 ```bash
 # Clone
@@ -73,7 +85,7 @@ Reply to any bark notification naturally:
 
 ## The Verdict
 
-Spoiler alert: the dog does not bark for 2 hours straight. He never has. But now we have the data to prove it, timestamped, classified by AI, and logged in a database that would make a data engineer weep.
+Spoiler alert: Eddie does not bark for 2 hours straight. He never has. But now we have the data to prove it, timestamped, classified by AI, and logged in a database that would make a data engineer weep. And if it turns out he *does* bark for an extended period, we'll know exactly when, why, and that Shadow was almost certainly on a roof somewhere nearby looking smug.
 
 Your loving developer. ❤️
 
