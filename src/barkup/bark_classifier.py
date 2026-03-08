@@ -38,7 +38,7 @@ class BarkClassifier:
     def _load_model(self):
         """Load YAMNet TFLite model."""
         try:
-            from ai_edge_litert import Interpreter
+            from ai_edge_litert.interpreter import Interpreter
         except ImportError:
             try:
                 from tflite_runtime.interpreter import Interpreter
