@@ -108,7 +108,7 @@ class BarkupOrchestrator:
 
         camera_name = settings.get_camera_name(device_id)
         stream = RTSPStream(self._sdm, device_id)
-        tracker = EpisodeTracker()
+        tracker = EpisodeTracker(event_timestamp=timestamp)
 
         try:
             stream.start()

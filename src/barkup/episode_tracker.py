@@ -16,8 +16,9 @@ class EpisodeTracker:
                                    -> BARKING (if bark during cooldown)
     """
 
-    def __init__(self):
+    def __init__(self, event_timestamp: datetime | None = None):
         self._state = "IDLE"
+        self._event_timestamp = event_timestamp
         self._episode_start: datetime | None = None
         self._last_bark_time: datetime | None = None
         self._bark_frame_count = 0
@@ -48,10 +49,14 @@ class EpisodeTracker:
                 self._bark_types.append(detection.bark_type)
 
             if self._state == "IDLE":
-                # Start new episode
+                # Start new episode — use Nest event timestamp for first episode
                 self._state = "BARKING"
-                self._episode_start = now
-                logger.info("Episode started at %s", now)
+                if self._event_timestamp:
+                    self._episode_start = self._event_timestamp
+                    self._event_timestamp = None  # Only use for first episode
+                else:
+                    self._episode_start = now
+                logger.info("Episode started at %s", self._episode_start)
             elif self._state == "COOLDOWN":
                 # Back to barking
                 self._state = "BARKING"
