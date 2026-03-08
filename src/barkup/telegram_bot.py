@@ -1,11 +1,9 @@
 """Telegram bot for bark notifications and intervention tracking."""
 
-import json
 import logging
 import threading
 import time
 from datetime import datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -19,17 +17,18 @@ TELEGRAM_API = "https://api.telegram.org/bot{token}"
 
 
 class TelegramBot:
-    def __init__(self, on_intervention: callable = None):
+    def __init__(self, on_intervention: callable = None, notion_logger=None):
         """
         Args:
-            on_intervention: Callback(episode_page_id, was_home, intervened, reason)
-                called when user replies with intervention details.
+            on_intervention: Callback(page_id, fields) for intervention updates.
+            notion_logger: NotionLogger instance for looking up pages by message ID.
         """
         self._token = settings.telegram_bot_token
         self._chat_id = settings.telegram_chat_id
         self._base_url = TELEGRAM_API.format(token=self._token)
         self._client = httpx.Client(timeout=30)
         self._on_intervention = on_intervention
+        self._notion = notion_logger
         # Allowed user IDs (owner + anyone they add)
         allowed = settings.telegram_allowed_users
         self._allowed_users: set[str] = set()
@@ -39,30 +38,11 @@ class TelegramBot:
             self._allowed_users.add(str(self._chat_id))
         self._poll_thread = None
         self._running = False
-        # Track message_id -> notion_page_id for reply handling
-        self._mapping_path = Path(settings.clip_storage_path) / ".message_mapping.json"
-        self._message_to_page: dict[int, str] = self._load_mapping()
         self._last_update_id = 0
 
     @property
     def enabled(self) -> bool:
         return bool(self._token and self._chat_id)
-
-    def _load_mapping(self) -> dict[int, str]:
-        try:
-            if self._mapping_path.exists():
-                data = json.loads(self._mapping_path.read_text())
-                return {int(k): v for k, v in data.items()}
-        except Exception:
-            logger.exception("Failed to load message mapping")
-        return {}
-
-    def _save_mapping(self):
-        try:
-            self._mapping_path.parent.mkdir(parents=True, exist_ok=True)
-            self._mapping_path.write_text(json.dumps(self._message_to_page))
-        except Exception:
-            logger.exception("Failed to save message mapping")
 
     def _send(self, method: str, **params) -> dict | None:
         try:
@@ -123,15 +103,12 @@ class TelegramBot:
             disable_web_page_preview=True,
         )
 
-        if result and notion_page_id:
-            msg_id = result.get("message_id")
-            self._message_to_page[msg_id] = notion_page_id
-            self._save_mapping()
-            return msg_id
+        if result:
+            return result.get("message_id")
         return None
 
-    def send_nightly_summary(self, episodes: list[Episode], date: datetime = None):
-        """Send the nightly summary at 8pm."""
+    def send_nightly_summary(self, episodes: list[dict], date: datetime = None):
+        """Send the nightly summary at 8pm. Episodes are dicts from Notion query."""
         tz = ZoneInfo(settings.timezone)
         date = date or datetime.now(tz)
         date_str = date.strftime("%A, %B %d")
@@ -142,34 +119,40 @@ class TelegramBot:
                 f"✅ No barking episodes detected today! Good boy! 🐕"
             )
         else:
-            total_duration = sum(e.duration_seconds for e in episodes)
-            if total_duration >= 60:
-                total_str = f"{total_duration / 60:.0f}m {total_duration % 60:.0f}s"
+            total_bark_time = sum(e["bark_time_seconds"] for e in episodes)
+            total_barks = sum(e["bark_count"] for e in episodes)
+            if total_bark_time >= 60:
+                total_str = f"{total_bark_time / 60:.0f}m {total_bark_time % 60:.0f}s"
             else:
-                total_str = f"{total_duration:.0f}s"
+                total_str = f"{total_bark_time:.0f}s"
 
-            longest = max(episodes, key=lambda e: e.duration_seconds)
-            longest_dur = longest.duration_seconds
+            longest = max(episodes, key=lambda e: e["duration_seconds"])
+            longest_dur = longest["duration_seconds"]
             if longest_dur >= 60:
                 longest_str = f"{longest_dur / 60:.0f}m {longest_dur % 60:.0f}s"
             else:
                 longest_str = f"{longest_dur:.0f}s"
 
+            longest_time = longest["start_time"]
+            longest_time_str = longest_time.astimezone(tz).strftime("%I:%M %p") if longest_time.tzinfo else longest_time.strftime("%I:%M %p")
+
             text = (
                 f"📋 *Daily Bark Summary - {date_str}*\n\n"
                 f"📊 Total episodes: {len(episodes)}\n"
+                f"🐕 Total barks: {total_barks}\n"
                 f"⏱ Total bark time: {total_str}\n"
-                f"🔝 Longest episode: {longest_str} "
-                f"at {longest.start_time.astimezone(tz).strftime('%I:%M %p') if longest.start_time.tzinfo else longest.start_time.strftime('%I:%M %p')}\n\n"
+                f"🔝 Longest episode: {longest_str} at {longest_time_str}\n\n"
             )
 
             # List each episode
             for i, ep in enumerate(episodes, 1):
-                ep_time = ep.start_time.astimezone(tz).strftime("%I:%M %p") if ep.start_time.tzinfo else ep.start_time.strftime("%I:%M %p")
-                ep_dur = f"{ep.duration_seconds:.0f}s"
-                if ep.duration_seconds >= 60:
-                    ep_dur = f"{ep.duration_seconds / 60:.0f}m"
-                text += f"{i}. {ep_time} - {ep.dominant_bark_type.value} ({ep_dur})\n"
+                ep_time = ep["start_time"].astimezone(tz).strftime("%I:%M %p") if ep["start_time"].tzinfo else ep["start_time"].strftime("%I:%M %p")
+                ep_dur = f"{ep['duration_seconds']:.0f}s"
+                if ep["duration_seconds"] >= 60:
+                    ep_dur = f"{ep['duration_seconds'] / 60:.0f}m"
+                bark_info = f"{ep['bark_count']} barks" if ep["bark_count"] else ep_dur
+                cam = f" [{ep['camera']}]" if ep.get("camera") else ""
+                text += f"{i}. {ep_time} - {ep['bark_type']}{cam} ({bark_info})\n"
 
         self._send(
             "sendMessage",
@@ -244,8 +227,12 @@ class TelegramBot:
         reply_msg_id = reply_to.get("message_id")
         text = message.get("text", "")
 
-        if reply_msg_id and reply_msg_id in self._message_to_page:
-            page_id = self._message_to_page[reply_msg_id]
+        if reply_msg_id and self._notion:
+            # Look up the Notion page by the Telegram message ID
+            page_id = self._notion.find_page_by_message_id(reply_msg_id)
+            if not page_id:
+                return
+
             fields = self._parse_reply(text)
 
             if fields and self._on_intervention:

@@ -1,7 +1,7 @@
 """Logs bark episodes to Notion database."""
 
 import logging
-from datetime import timezone
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from notion_client import Client
@@ -112,3 +112,70 @@ class NotionLogger:
         if properties:
             self._client.pages.update(page_id=page_id, properties=properties)
             logger.info("Updated intervention for page %s", page_id)
+
+    def set_telegram_message_id(self, page_id: str, message_id: int):
+        """Store the Telegram message ID on a Notion page for reply tracking."""
+        self._client.pages.update(
+            page_id=page_id,
+            properties={"Telegram Message ID": {"number": message_id}},
+        )
+
+    def find_page_by_message_id(self, message_id: int) -> str | None:
+        """Look up a Notion page by its Telegram message ID."""
+        result = self._client.databases.query(
+            database_id=self._database_id,
+            filter={
+                "property": "Telegram Message ID",
+                "number": {"equals": message_id},
+            },
+            page_size=1,
+        )
+        pages = result.get("results", [])
+        if pages:
+            return pages[0]["id"]
+        return None
+
+    def get_today_episodes(self) -> list[dict]:
+        """Query today's bark episodes from Notion for the nightly summary."""
+        tz = ZoneInfo(settings.timezone)
+        today = datetime.now(tz).strftime("%Y-%m-%d")
+
+        result = self._client.databases.query(
+            database_id=self._database_id,
+            filter={
+                "property": "Date/Time",
+                "date": {"on_or_after": today},
+            },
+            sorts=[{"property": "Date/Time", "direction": "ascending"}],
+        )
+
+        episodes = []
+        for page in result.get("results", []):
+            props = page["properties"]
+            date_prop = props.get("Date/Time", {}).get("date", {})
+            start_str = date_prop.get("start")
+            if not start_str:
+                continue
+
+            start = datetime.fromisoformat(start_str)
+            title_parts = props.get("Event", {}).get("title", [])
+            title = title_parts[0]["text"]["content"] if title_parts else ""
+            duration = props.get("Duration (sec)", {}).get("number", 0) or 0
+            bark_time = props.get("Bark Time (sec)", {}).get("number", 0) or 0
+            bark_count = props.get("Bark Count", {}).get("number", 0) or 0
+            bark_type_sel = props.get("Bark Type", {}).get("select")
+            bark_type = bark_type_sel["name"] if bark_type_sel else "Bark"
+            camera_sel = props.get("Camera", {}).get("select")
+            camera = camera_sel["name"] if camera_sel else None
+
+            episodes.append({
+                "title": title,
+                "start_time": start,
+                "duration_seconds": duration,
+                "bark_time_seconds": bark_time,
+                "bark_count": bark_count,
+                "bark_type": bark_type,
+                "camera": camera,
+            })
+
+        return episodes

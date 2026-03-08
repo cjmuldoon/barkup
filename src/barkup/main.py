@@ -31,14 +31,14 @@ class BarkupOrchestrator:
         self._sdm = SDMClient()
         self._classifier = BarkClassifier()
         self._notion = NotionLogger()
-        self._telegram = TelegramBot(on_intervention=self._handle_intervention)
+        self._telegram = TelegramBot(
+            on_intervention=self._handle_intervention,
+            notion_logger=self._notion,
+        )
         self._processing = False
         self._lock = threading.Lock()
         self._last_event_time: datetime | None = None
         self._event_cooldown = 10  # Ignore events within 10s of last one
-        # Track today's episodes for nightly summary
-        self._today_episodes: list = []
-        self._today_date = datetime.now().date()
 
     def _handle_intervention(self, page_id: str, fields: dict):
         """Handle intervention reply from Telegram."""
@@ -48,25 +48,9 @@ class BarkupOrchestrator:
         except Exception:
             logger.exception("Failed to update intervention")
 
-    def _track_episode(self, episode):
-        """Add episode to today's list, resetting if new day."""
-        today = datetime.now().date()
-        if today != self._today_date:
-            self._today_episodes = []
-            self._today_date = today
-        self._today_episodes.append(episode)
-
     def _send_nightly_summary(self):
-        """Send nightly summary via Telegram."""
-        today = datetime.now().date()
-        if today != self._today_date:
-            # Day rolled over, send yesterday's summary
-            episodes = self._today_episodes
-            self._today_episodes = []
-            self._today_date = today
-        else:
-            episodes = self._today_episodes
-
+        """Send nightly summary via Telegram, querying Notion for today's data."""
+        episodes = self._notion.get_today_episodes()
         self._telegram.send_nightly_summary(episodes)
         logger.info("Nightly summary sent: %d episodes", len(episodes))
 
@@ -153,10 +137,10 @@ class BarkupOrchestrator:
                     episode.nest_link = nest_link
                     episode.camera_name = camera_name
                     page_id = self._notion.log_episode(episode)
-                    self._track_episode(episode)
-                    # Send Telegram notification
                     if self._telegram.enabled:
-                        self._telegram.send_bark_notification(episode, page_id)
+                        msg_id = self._telegram.send_bark_notification(episode, page_id)
+                        if msg_id and page_id:
+                            self._notion.set_telegram_message_id(page_id, msg_id)
 
                 # Stop if silence exceeds cooldown and no active episode
                 if (
@@ -179,9 +163,10 @@ class BarkupOrchestrator:
                 remaining.nest_link = nest_link if 'nest_link' in dir() else None
                 remaining.camera_name = camera_name
                 page_id = self._notion.log_episode(remaining)
-                self._track_episode(remaining)
                 if self._telegram.enabled:
-                    self._telegram.send_bark_notification(remaining, page_id)
+                    msg_id = self._telegram.send_bark_notification(remaining, page_id)
+                    if msg_id and page_id:
+                        self._notion.set_telegram_message_id(page_id, msg_id)
 
             stream.stop()
             with self._lock:
