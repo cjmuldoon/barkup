@@ -36,6 +36,8 @@ class BarkupOrchestrator:
             notion_logger=self._notion,
         )
         self._processing = False
+        self._processing_since: datetime | None = None
+        self._max_processing_time = 600  # 10 min safety timeout
         self._lock = threading.Lock()
         self._last_event_time: datetime | None = None
         self._event_cooldown = 10  # Ignore events within 10s of last one
@@ -59,6 +61,11 @@ class BarkupOrchestrator:
         camera_name = settings.get_camera_name(device_id)
         logger.info("Camera event received [%s] from %s: %s", event_type, camera_name, event_id)
 
+        # Only process Sound events — Motion/Person don't reliably have audio
+        if "Sound" not in event_type:
+            logger.info("Ignoring non-sound event: %s", event_type)
+            return
+
         # Cooldown: skip if we just processed an event
         now = datetime.now()
         if self._last_event_time:
@@ -74,9 +81,20 @@ class BarkupOrchestrator:
 
         with self._lock:
             if self._processing:
-                logger.info("Already processing audio, ignoring duplicate event")
-                return
+                # Safety: auto-reset if stuck for too long
+                if self._processing_since:
+                    stuck_time = (now - self._processing_since).total_seconds()
+                    if stuck_time > self._max_processing_time:
+                        logger.warning("Processing stuck for %.0fs, force-resetting", stuck_time)
+                        self._processing = False
+                    else:
+                        logger.info("Already processing audio (%.0fs), ignoring event", stuck_time)
+                        return
+                else:
+                    logger.info("Already processing audio, ignoring duplicate event")
+                    return
             self._processing = True
+            self._processing_since = now
 
         # Process in a thread to not block the Pub/Sub callback
         thread = threading.Thread(
@@ -171,6 +189,7 @@ class BarkupOrchestrator:
             stream.stop()
             with self._lock:
                 self._processing = False
+                self._processing_since = None
 
     def run(self):
         """Main entry point - start listening for events."""

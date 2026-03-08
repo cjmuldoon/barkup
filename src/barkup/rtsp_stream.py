@@ -1,6 +1,8 @@
 """RTSP stream manager using ffmpeg for audio extraction."""
 
 import logging
+import os
+import select
 import subprocess
 import threading
 import time
@@ -85,9 +87,17 @@ class RTSPStream:
             self._recording_process = None
             logger.info("Recording stopped")
 
-    def read_frame(self) -> bytes | None:
-        """Read one YAMNet-sized audio frame (0.96s) from ffmpeg pipe."""
+    def read_frame(self, timeout: float = 30.0) -> bytes | None:
+        """Read one YAMNet-sized audio frame (0.96s) from ffmpeg pipe.
+
+        Returns None if no data within timeout (stream likely dead).
+        """
         if not self._process or not self._process.stdout:
+            return None
+        fd = self._process.stdout.fileno()
+        ready, _, _ = select.select([fd], [], [], timeout)
+        if not ready:
+            logger.warning("read_frame timed out after %.0fs — stream may be dead", timeout)
             return None
         data = self._process.stdout.read(FRAME_BYTES)
         if len(data) < FRAME_BYTES:
