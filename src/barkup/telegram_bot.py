@@ -5,6 +5,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -39,12 +40,29 @@ class TelegramBot:
         self._poll_thread = None
         self._running = False
         # Track message_id -> notion_page_id for reply handling
-        self._message_to_page: dict[int, str] = {}
+        self._mapping_path = Path(settings.clip_storage_path) / ".message_mapping.json"
+        self._message_to_page: dict[int, str] = self._load_mapping()
         self._last_update_id = 0
 
     @property
     def enabled(self) -> bool:
         return bool(self._token and self._chat_id)
+
+    def _load_mapping(self) -> dict[int, str]:
+        try:
+            if self._mapping_path.exists():
+                data = json.loads(self._mapping_path.read_text())
+                return {int(k): v for k, v in data.items()}
+        except Exception:
+            logger.exception("Failed to load message mapping")
+        return {}
+
+    def _save_mapping(self):
+        try:
+            self._mapping_path.parent.mkdir(parents=True, exist_ok=True)
+            self._mapping_path.write_text(json.dumps(self._message_to_page))
+        except Exception:
+            logger.exception("Failed to save message mapping")
 
     def _send(self, method: str, **params) -> dict | None:
         try:
@@ -108,6 +126,7 @@ class TelegramBot:
         if result and notion_page_id:
             msg_id = result.get("message_id")
             self._message_to_page[msg_id] = notion_page_id
+            self._save_mapping()
             return msg_id
         return None
 
