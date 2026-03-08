@@ -22,7 +22,7 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 
 **Features:**
 - 🎙️ **AI Bark Classification** — YAMNet distinguishes barks, howls, yips, whimpers, and growls. Science, Karen.
-- ⏱️ **Duration Tracking** — Exact start time, end time, and duration of every episode. Down to the second.
+- ⏱️ **Duration Tracking** — Exact start time, end time, and duration of every episode. Down to the second. Shows actual bark time vs total episode span, so a "6 minute episode" that was really 15 seconds of barking doesn't look worse than it is.
 - 📊 **Confidence Scoring** — How confident the AI is that it was actually a bark and not, say, 60 people gasping in horror.
 - 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply naturally to log if you were home, intervened, or note the reason.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
