@@ -40,8 +40,9 @@ else
 fi
 PULL
 
-echo "=== Copying .env (secrets not in repo) ==="
+echo "=== Copying secrets (not in repo) ==="
 scp /Users/dunderdoon/Projects_Local/barkup/.env $SERVER:$APP_DIR/.env
+scp /Users/dunderdoon/Projects_Local/barkup/automations-489603-9d6e8cc38214.json $SERVER:$APP_DIR/service-account.json
 
 echo "=== Building and starting ==="
 ssh $SERVER "cd $APP_DIR && docker compose up -d --build"

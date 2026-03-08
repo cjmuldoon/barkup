@@ -1,4 +1,6 @@
 .env
+*-service-account.json
+automations-*.json
 clips/
 models/*.tflite
 __pycache__/

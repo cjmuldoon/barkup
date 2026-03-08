@@ -22,9 +22,13 @@ class PubSubListener:
             on_sound_event: Callback with (event_id, event_timestamp) when sound detected.
         """
         self._on_sound_event = on_sound_event
-        self._subscriber = pubsub_v1.SubscriberClient(
-            credentials=get_credentials()
-        )
+        # Pub/Sub uses a GCP service account, not the OAuth user credentials
+        if settings.google_application_credentials:
+            self._subscriber = pubsub_v1.SubscriberClient.from_service_account_json(
+                settings.google_application_credentials
+            )
+        else:
+            self._subscriber = pubsub_v1.SubscriberClient()
         self._subscription_path = self._subscriber.subscription_path(
             settings.pubsub_project_id, settings.pubsub_subscription_id
         )

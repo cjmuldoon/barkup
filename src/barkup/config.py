@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     bark_confidence_threshold: float = 0.3
     episode_cooldown_seconds: int = 30
 
+    # GCP Service Account (for Pub/Sub)
+    google_application_credentials: str | None = None
+
     # Clip storage
     clip_storage_path: str = "./clips"
     s3_endpoint: str | None = None

@@ -5,3 +5,4 @@ services:
     env_file: .env
     volumes:
       - ./clips:/app/clips
+      - ./service-account.json:/app/service-account.json:ro
