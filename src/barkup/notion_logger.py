@@ -30,6 +30,77 @@ class NotionLogger:
             timeout=30,
         )
 
+    def log_preliminary(self, timestamp: datetime, camera_name: str | None = None,
+                        snapshot_path: str | None = None, nest_link: str | None = None) -> str:
+        """Create a preliminary Notion page for a Sound event. Returns page ID."""
+        tz = ZoneInfo(settings.timezone)
+        start = timestamp if timestamp.tzinfo else timestamp.replace(tzinfo=ZoneInfo("UTC"))
+        local_time = start.astimezone(tz).strftime("%I:%M %p")
+        cam_prefix = f"[{camera_name}] " if camera_name else ""
+        title = f"{cam_prefix}Sound detected - {local_time} (analyzing...)"
+
+        properties = {
+            "Event": {"title": [{"text": {"content": title}}]},
+            "Date/Time": {"date": {"start": start.isoformat()}},
+            "Bark Type": {"select": {"name": "Unconfirmed"}},
+            "Confidence": {"number": 0},
+            "Reason": {"select": {"name": "Unknown"}},
+            "Owner Home": {"checkbox": False},
+            "Intervened": {"checkbox": False},
+        }
+        if camera_name:
+            properties["Camera"] = {"select": {"name": camera_name}}
+        if nest_link:
+            properties["Nest Link"] = {"url": nest_link}
+
+        page = self._client.pages.create(
+            parent={"database_id": self._database_id},
+            properties=properties,
+        )
+        page_id = page.get("id", "")
+        logger.info("Preliminary entry created: %s", page_id)
+        return page_id
+
+    def update_episode(self, page_id: str, episode: Episode):
+        """Update a preliminary page with confirmed episode details."""
+        tz = ZoneInfo(settings.timezone)
+        start = episode.start_time if episode.start_time.tzinfo else episode.start_time.replace(tzinfo=ZoneInfo("UTC"))
+        end = episode.end_time if episode.end_time.tzinfo else episode.end_time.replace(tzinfo=ZoneInfo("UTC"))
+        local_time = start.astimezone(tz).strftime("%I:%M %p")
+        duration_min = episode.duration_seconds / 60
+        cam_prefix = f"[{episode.camera_name}] " if episode.camera_name else ""
+        if duration_min >= 1:
+            title = f"{cam_prefix}{episode.dominant_bark_type.value} - {local_time} ({duration_min:.0f}m)"
+        else:
+            title = f"{cam_prefix}{episode.dominant_bark_type.value} - {local_time} ({episode.duration_seconds:.0f}s)"
+
+        properties = {
+            "Event": {"title": [{"text": {"content": title}}]},
+            "Date/Time": {"date": {"start": start.isoformat(), "end": end.isoformat()}},
+            "Duration (sec)": {"number": episode.duration_seconds},
+            "Bark Time (sec)": {"number": round(episode.bark_frame_count * 0.975, 1)},
+            "Bark Count": {"number": episode.bark_frame_count},
+            "Confidence": {"number": episode.peak_confidence},
+            "Bark Type": {"select": {"name": episode.dominant_bark_type.value}},
+        }
+        if episode.clip_path:
+            properties["Notes"] = {"rich_text": [{"text": {"content": f"Local clip: {episode.clip_path}"}}]}
+
+        self._client.pages.update(page_id=page_id, properties=properties)
+        logger.info("Updated preliminary page with confirmed episode: %s", page_id)
+
+    def mark_unconfirmed(self, page_id: str, camera_name: str | None = None):
+        """Update a preliminary page to indicate no bark was confirmed."""
+        tz = ZoneInfo(settings.timezone)
+        self._client.pages.update(
+            page_id=page_id,
+            properties={
+                "Bark Type": {"select": {"name": "Unconfirmed"}},
+                "Notes": {"rich_text": [{"text": {"content": "Sound event — no bark confirmed by YAMNet"}}]},
+            },
+        )
+        logger.info("Marked page as unconfirmed: %s", page_id)
+
     def log_episode(self, episode: Episode) -> str:
         """
         Create a new page in the Notion database for a bark episode.

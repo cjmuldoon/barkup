@@ -59,6 +59,99 @@ class TelegramBot:
     def _is_authorized(self, user_id: int) -> bool:
         return str(user_id) in self._allowed_users
 
+    def send_preliminary_notification(self, timestamp: datetime, camera_name: str | None = None,
+                                       nest_link: str | None = None) -> int | None:
+        """Send a preliminary sound detection notification. Returns the message ID."""
+        tz = ZoneInfo(settings.timezone)
+        local_start = timestamp.astimezone(tz) if timestamp.tzinfo else timestamp.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+        local_time = local_start.strftime("%I:%M:%S %p")
+
+        cam_line = f"📷 Camera: {camera_name}\n" if camera_name else ""
+        text = (
+            f"🔊 *Sound Detected*\n\n"
+            f"{cam_line}"
+            f"⏰ Time: {local_time}\n"
+            f"🔍 Analyzing audio...\n"
+        )
+
+        if nest_link:
+            text += f"\n[View in Nest]({nest_link})"
+
+        result = self._send(
+            "sendMessage",
+            chat_id=self._chat_id,
+            text=text,
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+
+        if result:
+            return result.get("message_id")
+        return None
+
+    def update_bark_notification(self, message_id: int, episode: Episode) -> None:
+        """Update a preliminary notification with confirmed bark details."""
+        duration = episode.duration_seconds
+        if duration >= 60:
+            dur_str = f"{duration / 60:.0f}m {duration % 60:.0f}s"
+        else:
+            dur_str = f"{duration:.0f}s"
+
+        bark_secs = round(episode.bark_frame_count * 0.975, 1)
+        if bark_secs >= 60:
+            bark_str = f"{bark_secs / 60:.0f}m {bark_secs % 60:.0f}s"
+        else:
+            bark_str = f"{bark_secs:.0f}s"
+
+        tz = ZoneInfo(settings.timezone)
+        local_start = episode.start_time.astimezone(tz) if episode.start_time.tzinfo else episode.start_time.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+        local_time = local_start.strftime("%I:%M:%S %p")
+        confidence_pct = episode.peak_confidence * 100
+
+        cam_line = f"📷 Camera: {episode.camera_name}\n" if episode.camera_name else ""
+        text = (
+            f"🐕 *Bark Confirmed*\n\n"
+            f"{cam_line}"
+            f"⏰ Time: {local_time}\n"
+            f"⏱ Duration: {dur_str} ({bark_str} barking, {episode.bark_frame_count} barks)\n"
+            f"📊 Confidence: {confidence_pct:.0f}%\n"
+            f"🔊 Type: {episode.dominant_bark_type.value}\n"
+        )
+
+        if episode.nest_link:
+            text += f"\n[View in Nest]({episode.nest_link})"
+
+        text += (
+            f"\n\n_Reply to update:_\n"
+            f"e.g. `home, intervened, it was the mailman`"
+        )
+
+        self._send(
+            "editMessageText",
+            chat_id=self._chat_id,
+            message_id=message_id,
+            text=text,
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+
+    def update_unconfirmed_notification(self, message_id: int, camera_name: str | None = None) -> None:
+        """Update a preliminary notification to show no bark was confirmed."""
+        cam_line = f"📷 Camera: {camera_name}\n" if camera_name else ""
+        text = (
+            f"✅ *No Bark Confirmed*\n\n"
+            f"{cam_line}"
+            f"Sound event analysed — not a bark.\n"
+        )
+
+        self._send(
+            "editMessageText",
+            chat_id=self._chat_id,
+            message_id=message_id,
+            text=text,
+            parse_mode="Markdown",
+        )
+
     def send_bark_notification(self, episode: Episode, notion_page_id: str = None) -> int | None:
         """Send a bark episode notification. Returns the message ID."""
         duration = episode.duration_seconds

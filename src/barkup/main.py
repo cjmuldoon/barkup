@@ -91,24 +91,59 @@ class BarkupOrchestrator:
             self._processing = True
             self._processing_since = now
 
+        # Build Nest app deep link
+        device_parts = device_id.split("/")
+        camera_id_part = device_parts[-1] if device_parts else ""
+        nest_link = f"https://home.nest.com/camera/{camera_id_part}"
+
+        # Hybrid: log preliminary entry immediately (before RTSP starts)
+        preliminary_page_id = None
+        preliminary_msg_id = None
+        try:
+            preliminary_page_id = self._notion.log_preliminary(
+                timestamp=timestamp, camera_name=camera_name,
+                snapshot_path=snapshot_path, nest_link=nest_link,
+            )
+            if self._telegram.enabled:
+                preliminary_msg_id = self._telegram.send_preliminary_notification(
+                    timestamp=timestamp, camera_name=camera_name, nest_link=nest_link,
+                )
+                if preliminary_msg_id and preliminary_page_id:
+                    self._notion.set_telegram_message_id(preliminary_page_id, preliminary_msg_id)
+            logger.info("Preliminary entry created: page=%s, msg=%s", preliminary_page_id, preliminary_msg_id)
+        except Exception:
+            logger.exception("Failed to create preliminary entry")
+
         # Process in a thread to not block the Pub/Sub callback
         thread = threading.Thread(
             target=self._process_sound_event,
-            args=(event_id, timestamp, snapshot_path, device_id),
+            args=(event_id, timestamp, snapshot_path, device_id, preliminary_page_id, preliminary_msg_id),
             daemon=True,
         )
         thread.start()
 
     def _process_sound_event(
-        self, event_id: str, timestamp: datetime, snapshot_path: str | None, device_id: str
+        self, event_id: str, timestamp: datetime, snapshot_path: str | None, device_id: str,
+        preliminary_page_id: str | None = None, preliminary_msg_id: int | None = None,
     ):
-        """Start RTSP stream, classify audio, track episodes."""
+        """Start RTSP stream, classify audio, track episodes.
+
+        In hybrid mode, a preliminary Notion page and Telegram message already exist.
+        If YAMNet confirms barking, we update them. If not, we mark as unconfirmed.
+        """
         from barkup.episode_tracker import EpisodeTracker
         from barkup.rtsp_stream import RTSPStream
 
         camera_name = settings.get_camera_name(device_id)
         stream = RTSPStream(self._sdm, device_id)
         tracker = EpisodeTracker(event_timestamp=timestamp)
+
+        # Build Nest app deep link
+        device_parts = device_id.split("/")
+        camera_id = device_parts[-1] if device_parts else ""
+        nest_link = f"https://home.nest.com/camera/{camera_id}"
+
+        bark_confirmed = False
 
         try:
             stream.start()
@@ -120,15 +155,9 @@ class BarkupOrchestrator:
             clip_path = str(clip_dir / clip_filename)
             stream.start_recording(clip_path)
 
-            # Build Nest app deep link
-            device_parts = device_id.split("/")
-            camera_id = device_parts[-1] if device_parts else ""
-            nest_link = f"https://home.nest.com/camera/{camera_id}"
-
             consecutive_silence = 0
-            max_silence_frames = int(
-                settings.episode_cooldown_seconds / 0.96
-            )
+            # 60s silence timeout (~62 frames at ~0.975s/frame)
+            max_silence_frames = int(60 / 0.96)
 
             while True:
                 frame = stream.read_frame()
@@ -149,19 +178,32 @@ class BarkupOrchestrator:
                     episode.clip_path = clip_path
                     episode.nest_link = nest_link
                     episode.camera_name = camera_name
-                    page_id = self._notion.log_episode(episode)
-                    if self._telegram.enabled:
-                        msg_id = self._telegram.send_bark_notification(episode, page_id)
-                        if msg_id and page_id:
-                            self._notion.set_telegram_message_id(page_id, msg_id)
+                    bark_confirmed = True
 
-                # Stop if silence exceeds cooldown and no active episode
+                    if preliminary_page_id:
+                        # Update the preliminary page with confirmed episode data
+                        self._notion.update_episode(preliminary_page_id, episode)
+                        if self._telegram.enabled and preliminary_msg_id:
+                            self._telegram.update_bark_notification(preliminary_msg_id, episode)
+                        # Clear so subsequent episodes in same stream create new pages
+                        preliminary_page_id = None
+                        preliminary_msg_id = None
+                    else:
+                        # Additional episode in same stream — create fresh
+                        page_id = self._notion.log_episode(episode)
+                        if self._telegram.enabled:
+                            msg_id = self._telegram.send_bark_notification(episode, page_id)
+                            if msg_id and page_id:
+                                self._notion.set_telegram_message_id(page_id, msg_id)
+
+                # Stop if silence exceeds timeout and no active episode
                 if (
                     consecutive_silence >= max_silence_frames
                     and not tracker.is_active
                 ):
                     logger.info(
-                        "Extended silence detected, stopping stream"
+                        "Extended silence detected (%d frames), stopping stream",
+                        consecutive_silence,
                     )
                     break
 
@@ -172,14 +214,33 @@ class BarkupOrchestrator:
             remaining = tracker.force_end()
             if remaining:
                 remaining.snapshot_url = snapshot_path
-                remaining.clip_path = clip_path
-                remaining.nest_link = nest_link if 'nest_link' in dir() else None
+                remaining.clip_path = clip_path if 'clip_path' in dir() else None
+                remaining.nest_link = nest_link
                 remaining.camera_name = camera_name
-                page_id = self._notion.log_episode(remaining)
-                if self._telegram.enabled:
-                    msg_id = self._telegram.send_bark_notification(remaining, page_id)
-                    if msg_id and page_id:
-                        self._notion.set_telegram_message_id(page_id, msg_id)
+                bark_confirmed = True
+
+                if preliminary_page_id:
+                    self._notion.update_episode(preliminary_page_id, remaining)
+                    if self._telegram.enabled and preliminary_msg_id:
+                        self._telegram.update_bark_notification(preliminary_msg_id, remaining)
+                    preliminary_page_id = None
+                    preliminary_msg_id = None
+                else:
+                    page_id = self._notion.log_episode(remaining)
+                    if self._telegram.enabled:
+                        msg_id = self._telegram.send_bark_notification(remaining, page_id)
+                        if msg_id and page_id:
+                            self._notion.set_telegram_message_id(page_id, msg_id)
+
+            # If no bark was confirmed, mark preliminary as unconfirmed
+            if not bark_confirmed and preliminary_page_id:
+                try:
+                    self._notion.mark_unconfirmed(preliminary_page_id, camera_name)
+                    if self._telegram.enabled and preliminary_msg_id:
+                        self._telegram.update_unconfirmed_notification(preliminary_msg_id, camera_name)
+                    logger.info("Marked preliminary page as unconfirmed: %s", preliminary_page_id)
+                except Exception:
+                    logger.exception("Failed to mark preliminary as unconfirmed")
 
             stream.stop()
             with self._lock:
