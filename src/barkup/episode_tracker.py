@@ -15,11 +15,13 @@ class EpisodeTracker:
     State machine: IDLE -> PENDING -> BARKING -> COOLDOWN -> IDLE
                                               -> BARKING (if bark during cooldown)
 
-    PENDING requires MIN_CONSECUTIVE_BARKS consecutive bark frames before
-    confirming as a real episode. Single bangs/impacts get discarded.
+    PENDING uses a sliding window: requires MIN_BARK_FRAMES bark detections
+    within a CONFIRM_WINDOW frame window to confirm a real episode.
+    This handles dogs that bark in short bursts with pauses between.
     """
 
-    MIN_CONSECUTIVE_BARKS = 3  # ~3 seconds of sustained barking to confirm
+    MIN_BARK_FRAMES = 2   # bark frames needed within the window to confirm
+    CONFIRM_WINDOW = 5    # sliding window size in frames (~5 seconds)
 
     def __init__(self, event_timestamp: datetime | None = None):
         self._state = "IDLE"
@@ -33,7 +35,7 @@ class EpisodeTracker:
         self._total_frames = 0
         self._peak_confidence = 0.0
         self._bark_types: list[BarkType] = []
-        self._consecutive_barks = 0
+        self._recent_frames: list[bool] = []  # sliding window of bark/not-bark
 
     @property
     def state(self) -> str:
@@ -51,7 +53,6 @@ class EpisodeTracker:
         now = detection.timestamp
 
         if detection.is_bark:
-            self._consecutive_barks += 1
             self._peak_confidence = max(self._peak_confidence, detection.confidence)
             self._bark_frame_count += 1
             self._last_bark_time = now
@@ -59,8 +60,9 @@ class EpisodeTracker:
                 self._bark_types.append(detection.bark_type)
 
             if self._state == "IDLE":
-                # First bark frame — enter pending, wait for consecutive confirmation
+                # First bark frame — enter pending, start sliding window
                 self._state = "PENDING"
+                self._recent_frames = [True]
                 if self._event_timestamp:
                     self._episode_start = self._event_timestamp
                     self._event_timestamp = None  # Only use for first episode
@@ -68,24 +70,31 @@ class EpisodeTracker:
                     self._episode_start = now
 
             elif self._state == "PENDING":
-                # Check if we've hit the consecutive threshold
-                if self._consecutive_barks >= self.MIN_CONSECUTIVE_BARKS:
+                self._recent_frames.append(True)
+                if len(self._recent_frames) > self.CONFIRM_WINDOW:
+                    self._recent_frames.pop(0)
+                bark_count = sum(self._recent_frames)
+                if bark_count >= self.MIN_BARK_FRAMES:
                     self._state = "BARKING"
-                    logger.info("Episode confirmed at %s (%d consecutive bark frames)",
-                                self._episode_start, self._consecutive_barks)
+                    logger.info("Episode confirmed at %s (%d barks in %d frames)",
+                                self._episode_start, bark_count, len(self._recent_frames))
 
             elif self._state == "COOLDOWN":
                 # Back to barking
                 self._state = "BARKING"
 
         else:
-            self._consecutive_barks = 0
-
             if self._state == "PENDING":
-                # Bark didn't sustain — discard (likely a bang/impact)
-                logger.info("Pending episode discarded (only %d consecutive bark frames)",
-                            self._bark_frame_count)
-                self._reset()
+                self._recent_frames.append(False)
+                if len(self._recent_frames) > self.CONFIRM_WINDOW:
+                    self._recent_frames.pop(0)
+                # If window is full and not enough barks, discard
+                if len(self._recent_frames) >= self.CONFIRM_WINDOW:
+                    bark_count = sum(self._recent_frames)
+                    if bark_count < self.MIN_BARK_FRAMES:
+                        logger.info("Pending episode discarded (%d barks in %d frames)",
+                                    bark_count, len(self._recent_frames))
+                        self._reset()
 
             elif self._state == "BARKING":
                 # No bark detected while barking -> enter cooldown
@@ -150,4 +159,4 @@ class EpisodeTracker:
         self._total_frames = 0
         self._peak_confidence = 0.0
         self._bark_types = []
-        self._consecutive_barks = 0
+        self._recent_frames = []
