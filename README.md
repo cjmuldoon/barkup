@@ -24,7 +24,8 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - 🎙️ **AI Bark Classification** — YAMNet distinguishes barks, howls, yips, whimpers, and growls. Science, Karen.
 - ⏱️ **Duration Tracking** — Exact start time, end time, and duration of every episode. Down to the second. Shows actual bark time vs total episode span, so a "6 minute episode" that was really 15 seconds of barking doesn't look worse than it is.
 - 📊 **Confidence Scoring** — How confident the AI is that it was actually a bark and not, say, 60 people gasping in horror.
-- 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply naturally to log if you were home, intervened, or note the reason.
+- 🚫 **Negative Class Filter** — Suppresses false positives from TV, speech, music, and kids. If YAMNet hears more talking than barking, it's not a bark.
+- 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply `not bark` to flag false positives, or reply naturally to log context. Any unrecognised reply is saved as a comment on the Notion page.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
 - 📝 **Daily & On-Demand Summaries** — Nightly report at 8:30pm, or message the bot anytime: `summary`, `summary yesterday`, `summary last week`, `summary this week`, or `summary March 5`. Evidence on demand.
 - 🔗 **Nest Cam Links** — Jump straight to the camera footage for any event.
@@ -82,9 +83,11 @@ bash scripts/deploy.sh
 ## Telegram Commands
 
 **Reply to any bark notification naturally:**
+- `not bark` / `false positive` / `false alarm` — marks as Not Bark in Notion
 - `home` — you were home
 - `I was home and intervened, it was the mailman` — all parsed automatically
 - `doorbell` / `stranger` / `cat` / `boredom` — auto-detected reasons
+- Any other reply — saved as a comment on the Notion page
 
 **On-demand summaries (send as a new message, not a reply):**
 - `summary` — today's summary
