@@ -42,6 +42,10 @@ SUPPRESS_CLASSES = {
     289,  # Television
     290,  # Radio
     291,  # Video game music
+    # Appliances
+    363,  # Blender
+    406,  # Mechanical fan
+    482,  # Whir
     # Impact & household noises
     348,  # Door
     352,  # Slam
@@ -67,6 +71,7 @@ CLASS_NAMES = {
     69: "Dog", 70: "Bark", 71: "Yip", 72: "Howl",
     74: "Growling", 75: "Whimper", 137: "Music", 138: "Instrument",
     289: "Television", 290: "Radio", 291: "Game music",
+    363: "Blender", 406: "Mech fan", 482: "Whir",
     348: "Door", 352: "Slam", 353: "Knock", 356: "Cupboard",
     357: "Drawer", 358: "Dishes/pans", 454: "Thump", 455: "Thunk",
     460: "Bang", 461: "Slap", 462: "Whack", 463: "Crash",
