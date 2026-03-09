@@ -23,9 +23,10 @@ DOG_CLASSES = {
 }
 
 # YAMNet class indices for sounds that suppress bark detections.
-# If the combined score of these classes exceeds the bark score,
-# the detection is likely speech/music/TV rather than a real bark.
+# If the highest score among these classes exceeds the bark score,
+# the detection is likely speech/music/TV/impact rather than a real bark.
 SUPPRESS_CLASSES = {
+    # Speech & voice
     0,    # Speech
     1,    # Child speech, kid speaking
     2,    # Conversation
@@ -35,11 +36,27 @@ SUPPRESS_CLASSES = {
     6,    # Shout
     10,   # Singing
     11,   # Choir
+    # Music & media
     137,  # Music
     138,  # Musical instrument
     289,  # Television
     290,  # Radio
     291,  # Video game music
+    # Impact & household noises
+    348,  # Door
+    352,  # Slam
+    353,  # Knock
+    356,  # Cupboard open or close
+    357,  # Drawer open or close
+    358,  # Dishes, pots, and pans
+    454,  # Thump, thud
+    455,  # Thunk
+    460,  # Bang
+    461,  # Slap, smack
+    462,  # Whack, thwack
+    463,  # Smash, crash
+    464,  # Breaking
+    483,  # Clatter
 }
 
 # Readable names for classes we care about (for logging)
@@ -50,7 +67,10 @@ CLASS_NAMES = {
     69: "Dog", 70: "Bark", 71: "Yip", 72: "Howl",
     74: "Growling", 75: "Whimper", 137: "Music", 138: "Instrument",
     289: "Television", 290: "Radio", 291: "Game music",
-    494: "Silence",
+    348: "Door", 352: "Slam", 353: "Knock", 356: "Cupboard",
+    357: "Drawer", 358: "Dishes/pans", 454: "Thump", 455: "Thunk",
+    460: "Bang", 461: "Slap", 462: "Whack", 463: "Crash",
+    464: "Breaking", 483: "Clatter", 494: "Silence",
 }
 
 MODEL_PATH = os.environ.get(

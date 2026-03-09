@@ -12,9 +12,14 @@ logger = logging.getLogger(__name__)
 
 class EpisodeTracker:
     """
-    State machine: IDLE -> BARKING -> COOLDOWN -> IDLE
-                                   -> BARKING (if bark during cooldown)
+    State machine: IDLE -> PENDING -> BARKING -> COOLDOWN -> IDLE
+                                              -> BARKING (if bark during cooldown)
+
+    PENDING requires MIN_CONSECUTIVE_BARKS consecutive bark frames before
+    confirming as a real episode. Single bangs/impacts get discarded.
     """
+
+    MIN_CONSECUTIVE_BARKS = 3  # ~3 seconds of sustained barking to confirm
 
     def __init__(self, event_timestamp: datetime | None = None):
         self._state = "IDLE"
@@ -28,6 +33,7 @@ class EpisodeTracker:
         self._total_frames = 0
         self._peak_confidence = 0.0
         self._bark_types: list[BarkType] = []
+        self._consecutive_barks = 0
 
     @property
     def state(self) -> str:
@@ -45,6 +51,7 @@ class EpisodeTracker:
         now = detection.timestamp
 
         if detection.is_bark:
+            self._consecutive_barks += 1
             self._peak_confidence = max(self._peak_confidence, detection.confidence)
             self._bark_frame_count += 1
             self._last_bark_time = now
@@ -52,33 +59,53 @@ class EpisodeTracker:
                 self._bark_types.append(detection.bark_type)
 
             if self._state == "IDLE":
-                # Start new episode — use Nest event timestamp for first episode
-                self._state = "BARKING"
+                # First bark frame — enter pending, wait for consecutive confirmation
+                self._state = "PENDING"
                 if self._event_timestamp:
                     self._episode_start = self._event_timestamp
                     self._event_timestamp = None  # Only use for first episode
                 else:
                     self._episode_start = now
-                logger.info("Episode started at %s", self._episode_start)
+
+            elif self._state == "PENDING":
+                # Check if we've hit the consecutive threshold
+                if self._consecutive_barks >= self.MIN_CONSECUTIVE_BARKS:
+                    self._state = "BARKING"
+                    logger.info("Episode confirmed at %s (%d consecutive bark frames)",
+                                self._episode_start, self._consecutive_barks)
+
             elif self._state == "COOLDOWN":
                 # Back to barking
                 self._state = "BARKING"
 
-        elif self._state == "BARKING":
-            # No bark detected while barking -> enter cooldown
-            self._state = "COOLDOWN"
+        else:
+            self._consecutive_barks = 0
 
-        elif self._state == "COOLDOWN":
-            # Check if cooldown has expired
-            if self._last_bark_time:
-                elapsed = (now - self._last_bark_time).total_seconds()
-                if elapsed >= settings.episode_cooldown_seconds:
-                    return self._finalize_episode()
+            if self._state == "PENDING":
+                # Bark didn't sustain — discard (likely a bang/impact)
+                logger.info("Pending episode discarded (only %d consecutive bark frames)",
+                            self._bark_frame_count)
+                self._reset()
+
+            elif self._state == "BARKING":
+                # No bark detected while barking -> enter cooldown
+                self._state = "COOLDOWN"
+
+            elif self._state == "COOLDOWN":
+                # Check if cooldown has expired
+                if self._last_bark_time:
+                    elapsed = (now - self._last_bark_time).total_seconds()
+                    if elapsed >= settings.episode_cooldown_seconds:
+                        return self._finalize_episode()
 
         return None
 
     def force_end(self) -> Episode | None:
         """Force-end current episode (e.g., when stream stops)."""
+        if self._state == "PENDING":
+            # Never confirmed — discard
+            self._reset()
+            return None
         if self._state != "IDLE" and self._episode_start:
             return self._finalize_episode()
         return None
@@ -123,3 +150,4 @@ class EpisodeTracker:
         self._total_frames = 0
         self._peak_confidence = 0.0
         self._bark_types = []
+        self._consecutive_barks = 0
