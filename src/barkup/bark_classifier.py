@@ -22,6 +22,26 @@ DOG_CLASSES = {
     75: BarkType.WHIMPER, # Whimper
 }
 
+# YAMNet class indices for sounds that suppress bark detections.
+# If the combined score of these classes exceeds the bark score,
+# the detection is likely speech/music/TV rather than a real bark.
+SUPPRESS_CLASSES = {
+    0,    # Speech
+    1,    # Child speech, kid speaking
+    2,    # Conversation
+    3,    # Narration, monologue
+    4,    # Babbling
+    5,    # Speech synthesizer
+    6,    # Shout
+    10,   # Singing
+    11,   # Choir
+    137,  # Music
+    138,  # Musical instrument
+    289,  # Television
+    290,  # Radio
+    291,  # Video game music
+}
+
 MODEL_PATH = os.environ.get(
     "YAMNET_MODEL_PATH",
     str(Path(__file__).parent.parent.parent / "models" / "yamnet.tflite"),
@@ -90,6 +110,17 @@ class BarkClassifier:
                 best_type = bark_type
 
         is_bark = best_confidence >= settings.bark_confidence_threshold
+
+        # Negative class filter: suppress if speech/music/TV scores higher
+        if is_bark:
+            suppress_score = max(float(scores[i]) for i in SUPPRESS_CLASSES)
+            if suppress_score > best_confidence:
+                logger.debug(
+                    "Bark suppressed: bark=%.3f, suppress=%.3f (class %d)",
+                    best_confidence, suppress_score,
+                    max(SUPPRESS_CLASSES, key=lambda i: scores[i]),
+                )
+                is_bark = False
 
         return BarkDetection(
             timestamp=datetime.now(),
