@@ -115,7 +115,7 @@ class BarkClassifier:
         if is_bark:
             suppress_score = max(float(scores[i]) for i in SUPPRESS_CLASSES)
             if suppress_score > best_confidence:
-                logger.debug(
+                logger.info(
                     "Bark suppressed: bark=%.3f, suppress=%.3f (class %d)",
                     best_confidence, suppress_score,
                     max(SUPPRESS_CLASSES, key=lambda i: scores[i]),
