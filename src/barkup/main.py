@@ -286,11 +286,21 @@ class BarkupOrchestrator:
                         clip_path = None
                         video_path = None
 
-                    # If episode just ended, stop recording if still going
-                    if was_active and not tracker.is_active and recording:
+                    # If tracker went inactive without producing an episode, it was discarded
+                    if was_active and not tracker.is_active and recording and not episode:
                         stream.stop_recording()
                         stream.stop_video_recording()
                         recording = False
+                        # Clean up clip files from discarded pending episode
+                        for path in [clip_path, video_path]:
+                            if path:
+                                try:
+                                    Path(path).unlink(missing_ok=True)
+                                except Exception:
+                                    pass
+                        logger.info("Discarded pending episode — clips deleted")
+                        clip_path = None
+                        video_path = None
 
                     # Periodically clean up old Nest events
                     if self._classifier._frame_count % 120 == 0:
