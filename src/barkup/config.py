@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     notion_database_id: str
 
     # Bark detection tuning
-    bark_confidence_threshold: float = 0.3
+    bark_confidence_threshold: float = 0.4
     episode_cooldown_seconds: int = 30
 
     # GCP Service Account (for Pub/Sub)
