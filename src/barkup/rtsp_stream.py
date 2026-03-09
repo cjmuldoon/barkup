@@ -28,6 +28,7 @@ class RTSPStream:
         self._device_id = device_id
         self._process: subprocess.Popen | None = None
         self._stream_token: str | None = None
+        self._rtsp_url: str | None = None
         self._extend_timer: threading.Timer | None = None
         self._recording_process: subprocess.Popen | None = None
         self._active = False
@@ -35,14 +36,14 @@ class RTSPStream:
     def start(self) -> None:
         """Start RTSP stream and ffmpeg audio extraction."""
         result = self._sdm.generate_rtsp_stream(self._device_id)
-        rtsp_url = result["streamUrls"]["rtspUrl"]
+        self._rtsp_url = result["streamUrls"]["rtspUrl"]
         self._stream_token = result["streamExtensionToken"]
         self._active = True
 
         # ffmpeg: extract audio as 16kHz mono PCM to stdout
         cmd = [
             "ffmpeg",
-            "-i", rtsp_url,
+            "-i", self._rtsp_url,
             "-vn",                    # no video
             "-acodec", "pcm_s16le",   # 16-bit PCM
             "-ar", str(SAMPLE_RATE),  # 16kHz
@@ -59,15 +60,12 @@ class RTSPStream:
 
     def start_recording(self, output_path: str) -> None:
         """Start recording the RTSP stream to a file (audio only)."""
-        if not self._stream_token:
+        if not self._rtsp_url:
             return
-        # Get a fresh RTSP URL for the recorder
-        result = self._sdm.generate_rtsp_stream(self._device_id)
-        rtsp_url = result["streamUrls"]["rtspUrl"]
-
+        # Reuse the same RTSP URL (requesting a new stream can invalidate the first)
         cmd = [
             "ffmpeg",
-            "-i", rtsp_url,
+            "-i", self._rtsp_url,
             "-vn",
             "-acodec", "aac",
             "-y",
@@ -101,6 +99,12 @@ class RTSPStream:
             return None
         data = self._process.stdout.read(FRAME_BYTES)
         if len(data) < FRAME_BYTES:
+            # Log ffmpeg stderr to help diagnose stream failures
+            if self._process.stderr:
+                stderr = self._process.stderr.read()
+                if stderr:
+                    logger.warning("ffmpeg stderr: %s", stderr.decode(errors="replace").strip())
+            logger.warning("read_frame got %d/%d bytes (stream ended)", len(data), FRAME_BYTES)
             return None
         return data
 
