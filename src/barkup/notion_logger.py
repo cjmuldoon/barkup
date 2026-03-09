@@ -126,6 +126,25 @@ class NotionLogger:
             self._client.pages.update(page_id=page_id, properties=properties)
             logger.info("Updated intervention for page %s", page_id)
 
+    def update_bark_type(self, page_id: str, bark_type: str):
+        """Update the Bark Type select on a Notion page."""
+        self._client.pages.update(
+            page_id=page_id,
+            properties={"Bark Type": {"select": {"name": bark_type}}},
+        )
+        logger.info("Updated Bark Type to '%s' for page %s", bark_type, page_id)
+
+    def add_comment(self, page_id: str, text: str):
+        """Add a comment to a Notion page."""
+        self._http.post(
+            "/comments",
+            json={
+                "parent": {"page_id": page_id},
+                "rich_text": [{"text": {"content": text}}],
+            },
+        )
+        logger.info("Added comment to page %s: %s", page_id, text[:50])
+
     def set_telegram_message_id(self, page_id: str, message_id: int):
         """Store the Telegram message ID on a Notion page for reply tracking."""
         self._client.pages.update(

@@ -167,15 +167,24 @@ class TelegramBot:
 
         Very flexible — just looks for keywords anywhere in the message.
         Examples that all work:
+            "not bark" / "false positive" → marks as Not Bark
             "home"
             "I was home and intervened"
             "yes I was home, it was the mailman"
             "home, intervened, reason: stranger at door"
             "intervened - doorbell"
             "boredom"
+            Any other text → added as a Notion comment
         """
         text_lower = text.lower().strip()
         result = {}
+
+        # Check for "not bark" / "false positive" / "not a bark"
+        not_bark_phrases = ["not bark", "not a bark", "false positive", "false alarm",
+                           "wasn't bark", "wasnt bark", "no bark", "not barking"]
+        if any(phrase in text_lower for phrase in not_bark_phrases):
+            result["not_bark"] = True
+            return result
 
         # Check for "home" / "was home"
         if "home" in text_lower:
@@ -211,6 +220,10 @@ class TelegramBot:
             if keyword in text_lower:
                 result["reason"] = reason
                 break
+
+        # If nothing matched, treat the whole text as a comment
+        if not result:
+            result["comment"] = text.strip()
 
         return result
 
@@ -392,11 +405,17 @@ class TelegramBot:
                 return
 
             fields = self._parse_reply(text)
+            confirmations = []
 
-            if fields and self._on_intervention:
-                self._on_intervention(page_id, fields)
-                # Confirm to user
-                confirmations = []
+            if fields.get("not_bark"):
+                self._notion.update_bark_type(page_id, "Not Bark")
+                confirmations.append("✅ Marked as Not Bark")
+            elif fields.get("comment"):
+                self._notion.add_comment(page_id, fields["comment"])
+                confirmations.append(f"💬 Comment added")
+            else:
+                if self._on_intervention and fields:
+                    self._on_intervention(page_id, fields)
                 if fields.get("was_home"):
                     confirmations.append("✅ Marked as home")
                 if fields.get("intervened"):
@@ -404,21 +423,13 @@ class TelegramBot:
                 if fields.get("reason"):
                     confirmations.append(f"✅ Reason: {fields['reason']}")
 
-                self._send(
-                    "sendMessage",
-                    chat_id=self._chat_id,
-                    text="\n".join(confirmations) if confirmations else "❓ Couldn't parse reply. Try: `home, intervened, reason: mailman`",
-                    parse_mode="Markdown",
-                    reply_to_message_id=message.get("message_id"),
-                )
-            else:
-                self._send(
-                    "sendMessage",
-                    chat_id=self._chat_id,
-                    text="❓ Couldn't parse reply. Try: `home, intervened, reason: mailman`",
-                    parse_mode="Markdown",
-                    reply_to_message_id=message.get("message_id"),
-                )
+            self._send(
+                "sendMessage",
+                chat_id=self._chat_id,
+                text="\n".join(confirmations) if confirmations else "❓ Couldn't parse reply. Try: `not bark`, `home`, `reason: mailman`, or any comment",
+                parse_mode="Markdown",
+                reply_to_message_id=message.get("message_id"),
+            )
 
     def start_polling(self):
         """Start polling for replies in a background thread."""
