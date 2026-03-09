@@ -35,16 +35,40 @@ class BarkupOrchestrator:
         self._telegram = TelegramBot(
             on_intervention=self._handle_intervention,
             notion_logger=self._notion,
+            on_file_request=self._handle_file_request,
         )
         self._tz = ZoneInfo(settings.timezone)
         self._shutdown = threading.Event()
         self._monitor_active = threading.Event()
+
+        # File path cache: page_id -> {clip_path, video_path, snapshot_path}
+        self._file_cache: dict[str, dict[str, str]] = {}
+        self._file_cache_lock = threading.Lock()
 
         # Nest event cross-referencing: recent Nest Sound events keyed by device_id
         # Each entry: (timestamp, event_type, snapshot_path, nest_link, page_id)
         self._nest_events: dict[str, list[dict]] = {}
         self._nest_lock = threading.Lock()
         self._nest_event_window = 60  # seconds to match Nest event to YAMNet episode
+
+    def _cache_files(self, page_id: str, clip_path: str | None = None,
+                     video_path: str | None = None, snapshot_path: str | None = None):
+        """Store file paths for a page so they can be retrieved via Telegram."""
+        with self._file_cache_lock:
+            entry = self._file_cache.get(page_id, {})
+            if clip_path:
+                entry["clip"] = clip_path
+            if video_path:
+                entry["video"] = video_path
+            if snapshot_path:
+                entry["snapshot"] = snapshot_path
+            self._file_cache[page_id] = entry
+
+    def _handle_file_request(self, page_id: str, file_type: str) -> str | None:
+        """Return a file path for a page, or None if not available."""
+        with self._file_cache_lock:
+            entry = self._file_cache.get(page_id, {})
+            return entry.get(file_type)
 
     def _handle_intervention(self, page_id: str, fields: dict):
         """Handle intervention reply from Telegram."""
@@ -111,6 +135,8 @@ class BarkupOrchestrator:
                     snapshot_path=snapshot_path,
                 )
                 nest_event["page_id"] = page_id
+                if snapshot_path:
+                    self._cache_files(page_id, snapshot_path=snapshot_path)
                 if self._telegram.enabled:
                     msg_id = self._telegram.send_preliminary_notification(
                         timestamp=timestamp, camera_name=camera_name, nest_link=nest_link,
@@ -187,6 +213,7 @@ class BarkupOrchestrator:
             stream = RTSPStream(self._sdm, device_id)
             tracker = EpisodeTracker()
             clip_path = None
+            video_path = None
             recording = False
 
             try:
@@ -209,45 +236,60 @@ class BarkupOrchestrator:
                     if tracker.is_active and not was_active and not recording:
                         clip_dir = Path(settings.clip_storage_path)
                         clip_dir.mkdir(parents=True, exist_ok=True)
-                        clip_filename = f"bark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.aac"
-                        clip_path = str(clip_dir / clip_filename)
+                        ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        clip_path = str(clip_dir / f"bark_{ts_str}.aac")
+                        video_path = str(clip_dir / f"bark_{ts_str}.mp4")
                         stream.start_recording(clip_path)
+                        stream.start_video_recording(video_path)
                         recording = True
 
                     if episode:
                         # Stop recording
                         if recording:
                             stream.stop_recording()
+                            stream.stop_video_recording()
                             recording = False
 
                         episode.camera_name = camera_name
                         episode.nest_link = nest_link
                         episode.clip_path = clip_path
-                        clip_path = None
 
                         # Cross-reference with Nest events
                         nest_event = self._find_matching_nest_event(device_id, episode.start_time)
+                        snapshot_path = None
                         if nest_event:
                             episode.source = DetectionSource.BOTH
-                            episode.snapshot_url = nest_event.get("snapshot_path")
+                            snapshot_path = nest_event.get("snapshot_path")
+                            episode.snapshot_url = snapshot_path
                             if nest_event.get("page_id"):
                                 # Upgrade existing Nest-only page
                                 self._notion.upgrade_to_both(nest_event["page_id"], episode)
+                                self._cache_files(nest_event["page_id"],
+                                                  clip_path=clip_path, video_path=video_path,
+                                                  snapshot_path=snapshot_path)
                                 logger.info("Upgraded Nest event to Both: %s", nest_event["page_id"])
+                                clip_path = None
+                                video_path = None
                                 continue
                         else:
                             episode.source = DetectionSource.YAMNET
 
                         # Log to Notion + Telegram
                         page_id = self._notion.log_episode(episode)
+                        self._cache_files(page_id, clip_path=clip_path,
+                                          video_path=video_path, snapshot_path=snapshot_path)
                         if self._telegram.enabled:
                             msg_id = self._telegram.send_bark_notification(episode, page_id)
                             if msg_id and page_id:
                                 self._notion.set_telegram_message_id(page_id, msg_id)
 
+                        clip_path = None
+                        video_path = None
+
                     # If episode just ended, stop recording if still going
                     if was_active and not tracker.is_active and recording:
                         stream.stop_recording()
+                        stream.stop_video_recording()
                         recording = False
 
                     # Periodically clean up old Nest events
@@ -262,17 +304,22 @@ class BarkupOrchestrator:
                 if remaining:
                     if recording:
                         stream.stop_recording()
+                        stream.stop_video_recording()
                         recording = False
                     remaining.camera_name = camera_name
                     remaining.nest_link = nest_link
                     remaining.clip_path = clip_path
 
                     nest_event = self._find_matching_nest_event(device_id, remaining.start_time)
+                    snapshot_path = None
                     if nest_event:
                         remaining.source = DetectionSource.BOTH
-                        remaining.snapshot_url = nest_event.get("snapshot_path")
+                        snapshot_path = nest_event.get("snapshot_path")
+                        remaining.snapshot_url = snapshot_path
 
                     page_id = self._notion.log_episode(remaining)
+                    self._cache_files(page_id, clip_path=clip_path,
+                                      video_path=video_path, snapshot_path=snapshot_path)
                     if self._telegram.enabled:
                         msg_id = self._telegram.send_bark_notification(remaining, page_id)
                         if msg_id and page_id:

@@ -18,17 +18,21 @@ TELEGRAM_API = "https://api.telegram.org/bot{token}"
 
 
 class TelegramBot:
-    def __init__(self, on_intervention: callable = None, notion_logger=None):
+    def __init__(self, on_intervention: callable = None, notion_logger=None,
+                 on_file_request: callable = None):
         """
         Args:
             on_intervention: Callback(page_id, fields) for intervention updates.
             notion_logger: NotionLogger instance for looking up pages by message ID.
+            on_file_request: Callback(page_id, file_type) -> file_path or None.
+                           file_type is "clip", "video", or "snapshot".
         """
         self._token = settings.telegram_bot_token
         self._chat_id = settings.telegram_chat_id
         self._base_url = TELEGRAM_API.format(token=self._token)
         self._client = httpx.Client(timeout=30)
         self._on_intervention = on_intervention
+        self._on_file_request = on_file_request
         self._notion = notion_logger
         # Allowed user IDs (owner + anyone they add)
         allowed = settings.telegram_allowed_users
@@ -152,6 +156,44 @@ class TelegramBot:
             parse_mode="Markdown",
         )
 
+    def send_file(self, file_path: str, file_type: str, reply_to_message_id: int | None = None) -> None:
+        """Send a file (audio, video, or photo) to the chat."""
+        import os
+        if not os.path.exists(file_path):
+            self._send(
+                "sendMessage",
+                chat_id=self._chat_id,
+                text=f"❌ File not found: {os.path.basename(file_path)}",
+                reply_to_message_id=reply_to_message_id,
+            )
+            return
+
+        method_map = {
+            "clip": ("sendAudio", "audio"),
+            "video": ("sendVideo", "video"),
+            "snapshot": ("sendPhoto", "photo"),
+        }
+        method, field = method_map.get(file_type, ("sendDocument", "document"))
+
+        try:
+            with open(file_path, "rb") as f:
+                resp = self._client.post(
+                    f"{self._base_url}/{method}",
+                    data={"chat_id": self._chat_id, "reply_to_message_id": reply_to_message_id},
+                    files={field: (os.path.basename(file_path), f)},
+                    timeout=120,
+                )
+                resp.raise_for_status()
+                logger.info("Sent %s file: %s", file_type, file_path)
+        except Exception:
+            logger.exception("Failed to send %s file", file_type)
+            self._send(
+                "sendMessage",
+                chat_id=self._chat_id,
+                text=f"❌ Failed to send {file_type}",
+                reply_to_message_id=reply_to_message_id,
+            )
+
     def send_bark_notification(self, episode: Episode, notion_page_id: str = None) -> int | None:
         """Send a bark episode notification. Returns the message ID."""
         duration = episode.duration_seconds
@@ -273,6 +315,20 @@ class TelegramBot:
         """
         text_lower = text.lower().strip()
         result = {}
+
+        # Check for file requests
+        clip_phrases = ["clip", "audio", "send clip", "send audio", "sound"]
+        video_phrases = ["video", "send video", "footage"]
+        snapshot_phrases = ["snapshot", "photo", "image", "picture", "send photo", "send snapshot"]
+        if any(text_lower == phrase or text_lower == f"send {phrase}" for phrase in ["clip", "audio", "sound"]):
+            result["file_request"] = "clip"
+            return result
+        if any(text_lower == phrase or text_lower == f"send {phrase}" for phrase in ["video", "footage"]):
+            result["file_request"] = "video"
+            return result
+        if any(text_lower == phrase or text_lower == f"send {phrase}" for phrase in ["snapshot", "photo", "image", "picture"]):
+            result["file_request"] = "snapshot"
+            return result
 
         # Check for "not bark" / "false positive" / "not a bark"
         not_bark_phrases = ["not bark", "not a bark", "false positive", "false alarm",
@@ -509,7 +565,28 @@ class TelegramBot:
             fields = self._parse_reply(text)
             confirmations = []
 
-            if fields.get("not_bark"):
+            if fields.get("file_request"):
+                file_type = fields["file_request"]
+                if self._on_file_request:
+                    file_path = self._on_file_request(page_id, file_type)
+                    if file_path:
+                        self.send_file(file_path, file_type, reply_to_message_id=message.get("message_id"))
+                    else:
+                        self._send(
+                            "sendMessage",
+                            chat_id=self._chat_id,
+                            text=f"❌ No {file_type} available for this event",
+                            reply_to_message_id=message.get("message_id"),
+                        )
+                else:
+                    self._send(
+                        "sendMessage",
+                        chat_id=self._chat_id,
+                        text=f"❌ File retrieval not available",
+                        reply_to_message_id=message.get("message_id"),
+                    )
+                return
+            elif fields.get("not_bark"):
                 self._notion.update_bark_type(page_id, "Not Bark")
                 confirmations.append("✅ Marked as Not Bark")
             elif fields.get("was_bark"):

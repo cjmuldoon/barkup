@@ -31,6 +31,7 @@ class RTSPStream:
         self._rtsp_url: str | None = None
         self._extend_timer: threading.Timer | None = None
         self._recording_process: subprocess.Popen | None = None
+        self._video_process: subprocess.Popen | None = None
         self._active = False
 
     def start(self) -> None:
@@ -77,13 +78,44 @@ class RTSPStream:
         )
         logger.info("Recording started: %s", output_path)
 
+    def start_video_recording(self, output_path: str) -> None:
+        """Start recording the RTSP stream as video+audio MP4."""
+        if not self._rtsp_url:
+            return
+        cmd = [
+            "ffmpeg",
+            "-i", self._rtsp_url,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-c:a", "aac",
+            "-movflags", "+faststart",
+            "-y",
+            "-loglevel", "error",
+            output_path,
+        ]
+        self._video_process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        logger.info("Video recording started: %s", output_path)
+
+    def stop_video_recording(self) -> None:
+        """Stop the video recording process."""
+        if self._video_process:
+            self._video_process.terminate()
+            try:
+                self._video_process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                self._video_process.kill()
+                self._video_process.wait(timeout=5)
+            self._video_process = None
+            logger.info("Video recording stopped")
+
     def stop_recording(self) -> str | None:
-        """Stop the recording process."""
+        """Stop the audio recording process."""
         if self._recording_process:
             self._recording_process.terminate()
             self._recording_process.wait(timeout=10)
             self._recording_process = None
-            logger.info("Recording stopped")
+            logger.info("Audio recording stopped")
 
     def read_frame(self, timeout: float = 30.0) -> bytes | None:
         """Read one YAMNet-sized audio frame (0.96s) from ffmpeg pipe.
@@ -156,6 +188,14 @@ class RTSPStream:
                 self._recording_process.kill()
                 self._recording_process.wait(timeout=5)
             self._recording_process = None
+        if self._video_process:
+            self._video_process.terminate()
+            try:
+                self._video_process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                self._video_process.kill()
+                self._video_process.wait(timeout=5)
+            self._video_process = None
         if release_stream and self._stream_token:
             try:
                 self._sdm.stop_rtsp_stream(self._device_id, self._stream_token)

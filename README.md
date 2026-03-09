@@ -90,6 +90,9 @@ bash scripts/deploy.sh
 **Reply to any bark notification naturally:**
 - `not bark` / `false positive` / `false alarm` — marks as Not Bark in Notion
 - `was bark` / `confirmed` / `real bark` — confirms as Bark (validates Nest-only detections)
+- `clip` / `audio` / `sound` — sends the audio clip for that episode
+- `video` / `footage` — sends the video clip for that episode
+- `snapshot` / `photo` — sends the snapshot image
 - `home` — you were home
 - `I was home and intervened, it was the mailman` — all parsed automatically
 - `doorbell` / `stranger` / `cat` / `boredom` — auto-detected reasons
