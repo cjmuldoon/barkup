@@ -46,9 +46,11 @@ SUPPRESS_CLASSES = {
 CLASS_NAMES = {
     0: "Speech", 1: "Child speech", 2: "Conversation", 3: "Narration",
     4: "Babbling", 5: "Speech synth", 6: "Shout", 10: "Singing",
-    11: "Choir", 69: "Dog", 70: "Bark", 71: "Yip", 72: "Howl",
+    11: "Choir", 67: "Domestic animal", 68: "Dog (generic)",
+    69: "Dog", 70: "Bark", 71: "Yip", 72: "Howl",
     74: "Growling", 75: "Whimper", 137: "Music", 138: "Instrument",
     289: "Television", 290: "Radio", 291: "Game music",
+    494: "Silence",
 }
 
 MODEL_PATH = os.environ.get(
