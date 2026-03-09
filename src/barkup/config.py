@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     summary_minute: int = 30
     timezone: str = "Australia/Adelaide"
 
+    # Monitoring schedule (always-on RTSP)
+    monitor_start_hour: int = 7
+    monitor_start_minute: int = 30
+    monitor_end_hour: int = 20
+    monitor_end_minute: int = 30
+    stream_reconnect_delay: int = 5  # seconds between reconnect attempts
+
     # Clip storage
     clip_storage_path: str = "./clips"
     s3_endpoint: str | None = None

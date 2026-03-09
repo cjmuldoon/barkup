@@ -19,6 +19,12 @@ class BarkDetection(BaseModel):
     bark_type: BarkType | None = None
 
 
+class DetectionSource(str, Enum):
+    YAMNET = "YAMNet"
+    NEST = "Nest"
+    BOTH = "Both"
+
+
 class Episode(BaseModel):
     start_time: datetime
     end_time: datetime
@@ -27,6 +33,7 @@ class Episode(BaseModel):
     total_frames: int
     peak_confidence: float
     dominant_bark_type: BarkType
+    source: DetectionSource = DetectionSource.YAMNET
     snapshot_url: str | None = None
     clip_path: str | None = None
     clip_url: str | None = None

@@ -25,7 +25,8 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - ⏱️ **Duration Tracking** — Exact start time, end time, and duration of every episode. Down to the second. Shows actual bark time vs total episode span, so a "6 minute episode" that was really 15 seconds of barking doesn't look worse than it is.
 - 📊 **Confidence Scoring** — How confident the AI is that it was actually a bark and not, say, 60 people gasping in horror.
 - 🚫 **False Positive Filtering** — Multi-layered: suppresses when TV, speech, music, or household impacts (bangs, clatters, doors) score higher than bark. Plus uses a sliding window requiring 2+ bark frames within 5 frames to confirm an episode — single bangs get discarded.
-- 🔊 **Hybrid Detection** — Sound events from Nest are logged immediately so nothing is missed, then YAMNet analyses the audio stream to confirm or dismiss. No more missed barks due to RTSP startup delay.
+- 🎯 **Always-On Monitoring** — Continuous RTSP audio stream during configurable hours (default 7:30 AM – 8:30 PM). Zero detection latency — barks are caught within 1 second. Auto-reconnects on stream failure with exponential backoff.
+- 🔀 **Cross-Referencing** — YAMNet detections are cross-referenced with Nest Sound events. Each bark is tagged with its source: "YAMNet" (AI only), "Nest" (Google only), or "Both" (both agree). Build ground truth by replying to validate or dismiss.
 - 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply `not bark` to flag false positives, or reply naturally to log context. Any unrecognised reply is saved as a comment on the Notion page.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
 - 📝 **Daily & On-Demand Summaries** — Nightly report at 8:30pm, or message the bot anytime: `summary`, `summary yesterday`, `summary last week`, `summary this week`, or `summary March 5`. Evidence on demand.
@@ -35,8 +36,11 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 ## Architecture
 
 ```
-Nest Cam → Google Pub/Sub → Start RTSP Stream → ffmpeg Audio Extraction
-    → YAMNet Classification → Episode Tracking → Notion + Telegram
+Always-On RTSP Stream (7:30am–8:30pm) → ffmpeg Audio → YAMNet Classification
+    → Episode Tracking → Notion + Telegram
+
+Nest Cam → Google Pub/Sub → Snapshots + Cross-Referencing
+    → Source tagging: YAMNet / Nest / Both
 ```
 
 ## Tech Stack
@@ -85,6 +89,7 @@ bash scripts/deploy.sh
 
 **Reply to any bark notification naturally:**
 - `not bark` / `false positive` / `false alarm` — marks as Not Bark in Notion
+- `was bark` / `confirmed` / `real bark` — confirms as Bark (validates Nest-only detections)
 - `home` — you were home
 - `I was home and intervened, it was the mailman` — all parsed automatically
 - `doorbell` / `stranger` / `cat` / `boredom` — auto-detected reasons

@@ -172,6 +172,7 @@ class TelegramBot:
         confidence_pct = episode.peak_confidence * 100
 
         cam_line = f"📷 Camera: {episode.camera_name}\n" if episode.camera_name else ""
+        source_line = f"🔍 Source: {episode.source.value}\n" if hasattr(episode, 'source') else ""
         text = (
             f"🐕 *Bark Detected*\n\n"
             f"{cam_line}"
@@ -179,6 +180,7 @@ class TelegramBot:
             f"⏱ Duration: {dur_str} ({bark_str} barking, {episode.bark_frame_count} barks)\n"
             f"📊 Confidence: {confidence_pct:.0f}%\n"
             f"🔊 Type: {episode.dominant_bark_type.value}\n"
+            f"{source_line}"
         )
 
         if episode.nest_link:
@@ -277,6 +279,13 @@ class TelegramBot:
                            "wasn't bark", "wasnt bark", "no bark", "not barking"]
         if any(phrase in text_lower for phrase in not_bark_phrases):
             result["not_bark"] = True
+            return result
+
+        # Check for "was bark" / "confirmed" — validates Nest-only or unconfirmed events
+        was_bark_phrases = ["was bark", "was a bark", "confirmed", "actually bark",
+                           "real bark", "yes bark", "was barking"]
+        if any(phrase in text_lower for phrase in was_bark_phrases):
+            result["was_bark"] = True
             return result
 
         # Check for "home" / "was home"
@@ -503,6 +512,9 @@ class TelegramBot:
             if fields.get("not_bark"):
                 self._notion.update_bark_type(page_id, "Not Bark")
                 confirmations.append("✅ Marked as Not Bark")
+            elif fields.get("was_bark"):
+                self._notion.update_bark_type(page_id, "Bark")
+                confirmations.append("✅ Confirmed as Bark")
             elif fields.get("comment"):
                 self._notion.add_comment(page_id, fields["comment"])
                 confirmations.append(f"💬 Comment added")

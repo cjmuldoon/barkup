@@ -1,16 +1,17 @@
 """Barkup - Main orchestrator.
 
-Listens for Nest Cam sound events, runs bark classification,
-groups detections into episodes, and logs to Notion.
+Always-on RTSP monitoring with YAMNet bark classification.
+Nest Pub/Sub events provide snapshots and cross-referencing.
 """
 
 import argparse
 import logging
-import sys
+import signal
 import threading
 import time
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from barkup.config import settings
 from barkup.sdm_client import SDMClient
@@ -35,12 +36,15 @@ class BarkupOrchestrator:
             on_intervention=self._handle_intervention,
             notion_logger=self._notion,
         )
-        self._processing = False
-        self._processing_since: datetime | None = None
-        self._max_processing_time = 600  # 10 min safety timeout
-        self._lock = threading.Lock()
-        self._last_event_time: datetime | None = None
-        self._event_cooldown = 10  # Ignore events within 10s of last one
+        self._tz = ZoneInfo(settings.timezone)
+        self._shutdown = threading.Event()
+        self._monitor_active = threading.Event()
+
+        # Nest event cross-referencing: recent Nest Sound events keyed by device_id
+        # Each entry: (timestamp, event_type, snapshot_path, nest_link, page_id)
+        self._nest_events: dict[str, list[dict]] = {}
+        self._nest_lock = threading.Lock()
+        self._nest_event_window = 60  # seconds to match Nest event to YAMNet episode
 
     def _handle_intervention(self, page_id: str, fields: dict):
         """Handle intervention reply from Telegram."""
@@ -56,200 +60,324 @@ class BarkupOrchestrator:
         self._telegram.send_nightly_summary(episodes)
         logger.info("Nightly summary sent: %d episodes", len(episodes))
 
+    # --- Nest event handling (snapshots + cross-referencing) ---
+
     def _on_camera_event(self, event_id: str, timestamp: datetime, event_type: str, device_id: str):
-        """Called by PubSub listener when a camera event arrives."""
+        """Called by PubSub listener when a camera event arrives.
+
+        In always-on mode, this captures snapshots and logs Nest events
+        for cross-referencing with YAMNet detections.
+        """
         camera_name = settings.get_camera_name(device_id)
-        logger.info("Camera event received [%s] from %s: %s", event_type, camera_name, event_id)
+        event_label = event_type.split(".")[-1] if "." in event_type else event_type
+        logger.info("Nest event [%s] from %s at %s", event_label, camera_name, timestamp)
 
-        # Cooldown: skip if we just processed an event
-        now = datetime.now()
-        if self._last_event_time:
-            elapsed = (now - self._last_event_time).total_seconds()
-            if elapsed < self._event_cooldown:
-                logger.info("Skipping event (%.0fs since last, cooldown=%ds)", elapsed, self._event_cooldown)
-                return
-        self._last_event_time = now
-
-        # Fetch snapshot immediately (30s expiry)
+        # Fetch snapshot (30s expiry)
         from barkup.snapshot import fetch_snapshot
         snapshot_path = fetch_snapshot(self._sdm, device_id, event_id)
-
-        with self._lock:
-            if self._processing:
-                # Safety: auto-reset if stuck for too long
-                if self._processing_since:
-                    stuck_time = (now - self._processing_since).total_seconds()
-                    if stuck_time > self._max_processing_time:
-                        logger.warning("Processing stuck for %.0fs, force-resetting", stuck_time)
-                        self._processing = False
-                    else:
-                        logger.info("Already processing audio (%.0fs), ignoring event", stuck_time)
-                        return
-                else:
-                    logger.info("Already processing audio, ignoring duplicate event")
-                    return
-            self._processing = True
-            self._processing_since = now
 
         # Build Nest app deep link
         device_parts = device_id.split("/")
         camera_id_part = device_parts[-1] if device_parts else ""
         nest_link = f"https://home.nest.com/camera/{camera_id_part}"
 
-        # Hybrid: log preliminary entry immediately (before RTSP starts)
-        preliminary_page_id = None
-        preliminary_msg_id = None
-        try:
-            preliminary_page_id = self._notion.log_preliminary(
-                timestamp=timestamp, camera_name=camera_name,
-                snapshot_path=snapshot_path, nest_link=nest_link,
-            )
-            if self._telegram.enabled:
-                preliminary_msg_id = self._telegram.send_preliminary_notification(
-                    timestamp=timestamp, camera_name=camera_name, nest_link=nest_link,
+        # Only track Sound events for cross-referencing
+        if "Sound" not in event_type:
+            return
+
+        # Store for cross-referencing with YAMNet
+        nest_event = {
+            "timestamp": timestamp,
+            "event_type": event_type,
+            "snapshot_path": snapshot_path,
+            "nest_link": nest_link,
+            "camera_name": camera_name,
+            "matched": False,  # Set True when YAMNet also detects bark
+            "page_id": None,   # Filled if we create a Nest-only page
+        }
+
+        with self._nest_lock:
+            if device_id not in self._nest_events:
+                self._nest_events[device_id] = []
+            self._nest_events[device_id].append(nest_event)
+
+        # If monitoring is NOT active, log as Nest-only immediately
+        # (barking outside monitoring hours)
+        if not self._monitor_active.is_set():
+            try:
+                page_id = self._notion.log_nest_event(
+                    timestamp=timestamp, event_type=event_type,
+                    camera_name=camera_name, nest_link=nest_link,
+                    snapshot_path=snapshot_path,
                 )
-                if preliminary_msg_id and preliminary_page_id:
-                    self._notion.set_telegram_message_id(preliminary_page_id, preliminary_msg_id)
-            logger.info("Preliminary entry created: page=%s, msg=%s", preliminary_page_id, preliminary_msg_id)
-        except Exception:
-            logger.exception("Failed to create preliminary entry")
+                nest_event["page_id"] = page_id
+                if self._telegram.enabled:
+                    msg_id = self._telegram.send_preliminary_notification(
+                        timestamp=timestamp, camera_name=camera_name, nest_link=nest_link,
+                    )
+                    if msg_id and page_id:
+                        self._notion.set_telegram_message_id(page_id, msg_id)
+                logger.info("Nest-only event logged (outside monitoring hours): %s", page_id)
+            except Exception:
+                logger.exception("Failed to log Nest-only event")
 
-        # Process in a thread to not block the Pub/Sub callback
-        thread = threading.Thread(
-            target=self._process_sound_event,
-            args=(event_id, timestamp, snapshot_path, device_id, preliminary_page_id, preliminary_msg_id),
-            daemon=True,
-        )
-        thread.start()
+    def _find_matching_nest_event(self, device_id: str, episode_start: datetime) -> dict | None:
+        """Find a recent unmatched Nest Sound event near an episode start time."""
+        with self._nest_lock:
+            events = self._nest_events.get(device_id, [])
+            for event in reversed(events):  # Check most recent first
+                if event["matched"]:
+                    continue
+                nest_ts = event["timestamp"]
+                # Normalize both to naive for comparison
+                ts_a = nest_ts.replace(tzinfo=None) if nest_ts.tzinfo else nest_ts
+                ts_b = episode_start.replace(tzinfo=None) if episode_start.tzinfo else episode_start
+                diff = abs((ts_b - ts_a).total_seconds())
+                if diff <= self._nest_event_window:
+                    event["matched"] = True
+                    return event
+        return None
 
-    def _process_sound_event(
-        self, event_id: str, timestamp: datetime, snapshot_path: str | None, device_id: str,
-        preliminary_page_id: str | None = None, preliminary_msg_id: int | None = None,
-    ):
-        """Start RTSP stream, classify audio, track episodes.
+    def _cleanup_old_nest_events(self, device_id: str):
+        """Remove Nest events older than the matching window."""
+        cutoff = datetime.now() - timedelta(seconds=self._nest_event_window * 2)
+        with self._nest_lock:
+            events = self._nest_events.get(device_id, [])
+            # Log unmatched events as Nest-only before removing
+            remaining = []
+            for event in events:
+                event_age = datetime.now()
+                nest_ts = event["timestamp"]
+                if nest_ts.tzinfo:
+                    nest_ts = nest_ts.replace(tzinfo=None)
+                if (event_age - nest_ts).total_seconds() > self._nest_event_window * 2:
+                    if not event["matched"] and not event.get("page_id") and self._monitor_active.is_set():
+                        # Nest detected sound but YAMNet didn't — log as Nest-only
+                        try:
+                            page_id = self._notion.log_nest_event(
+                                timestamp=event["timestamp"],
+                                event_type=event["event_type"],
+                                camera_name=event["camera_name"],
+                                nest_link=event["nest_link"],
+                                snapshot_path=event["snapshot_path"],
+                            )
+                            logger.info("Nest-only event logged (YAMNet didn't confirm): %s", page_id)
+                        except Exception:
+                            logger.exception("Failed to log Nest-only event")
+                else:
+                    remaining.append(event)
+            self._nest_events[device_id] = remaining
 
-        In hybrid mode, a preliminary Notion page and Telegram message already exist.
-        If YAMNet confirms barking, we update them. If not, we mark as unconfirmed.
-        """
+    # --- Always-on classification loop ---
+
+    def _run_classification_loop(self, device_id: str):
+        """Continuously classify audio from an always-on RTSP stream."""
         from barkup.episode_tracker import EpisodeTracker
+        from barkup.models import DetectionSource
         from barkup.rtsp_stream import RTSPStream
 
         camera_name = settings.get_camera_name(device_id)
-        stream = RTSPStream(self._sdm, device_id)
-        tracker = EpisodeTracker(event_timestamp=timestamp)
-
-        # Build Nest app deep link
         device_parts = device_id.split("/")
         camera_id = device_parts[-1] if device_parts else ""
         nest_link = f"https://home.nest.com/camera/{camera_id}"
 
-        bark_confirmed = False
+        reconnect_delay = settings.stream_reconnect_delay
 
-        try:
-            stream.start()
+        while self._monitor_active.is_set() and not self._shutdown.is_set():
+            stream = RTSPStream(self._sdm, device_id)
+            tracker = EpisodeTracker()
+            clip_path = None
+            recording = False
 
-            # Start recording clip
-            clip_dir = Path(settings.clip_storage_path)
-            clip_dir.mkdir(parents=True, exist_ok=True)
-            clip_filename = f"bark_{timestamp.strftime('%Y%m%d_%H%M%S')}.aac"
-            clip_path = str(clip_dir / clip_filename)
-            stream.start_recording(clip_path)
+            try:
+                logger.info("Starting RTSP stream for %s", camera_name)
+                stream.start()
+                reconnect_delay = settings.stream_reconnect_delay  # Reset on success
 
-            consecutive_silence = 0
-            # 60s silence timeout (~62 frames at ~0.975s/frame)
-            max_silence_frames = int(60 / 0.96)
+                while self._monitor_active.is_set() and not self._shutdown.is_set():
+                    frame = stream.read_frame()
+                    if frame is None:
+                        logger.warning("RTSP stream ended for %s, will reconnect", camera_name)
+                        break
 
-            while True:
-                frame = stream.read_frame()
-                if frame is None:
-                    logger.warning("Audio stream ended unexpectedly")
-                    break
+                    detection = self._classifier.classify_frame(frame)
+                    was_active = tracker.is_active
 
-                detection = self._classifier.classify_frame(frame)
+                    episode = tracker.process(detection)
 
-                if detection.is_bark:
-                    consecutive_silence = 0
-                else:
-                    consecutive_silence += 1
+                    # Start recording when episode begins
+                    if tracker.is_active and not was_active and not recording:
+                        clip_dir = Path(settings.clip_storage_path)
+                        clip_dir.mkdir(parents=True, exist_ok=True)
+                        clip_filename = f"bark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.aac"
+                        clip_path = str(clip_dir / clip_filename)
+                        stream.start_recording(clip_path)
+                        recording = True
 
-                episode = tracker.process(detection)
-                if episode:
-                    episode.snapshot_url = snapshot_path
-                    episode.clip_path = clip_path
-                    episode.nest_link = nest_link
-                    episode.camera_name = camera_name
-                    bark_confirmed = True
+                    if episode:
+                        # Stop recording
+                        if recording:
+                            stream.stop_recording()
+                            recording = False
 
-                    if preliminary_page_id:
-                        # Update the preliminary page with confirmed episode data
-                        self._notion.update_episode(preliminary_page_id, episode)
-                        if self._telegram.enabled and preliminary_msg_id:
-                            self._telegram.update_bark_notification(preliminary_msg_id, episode)
-                        # Clear so subsequent episodes in same stream create new pages
-                        preliminary_page_id = None
-                        preliminary_msg_id = None
-                    else:
-                        # Additional episode in same stream — create fresh
+                        episode.camera_name = camera_name
+                        episode.nest_link = nest_link
+                        episode.clip_path = clip_path
+                        clip_path = None
+
+                        # Cross-reference with Nest events
+                        nest_event = self._find_matching_nest_event(device_id, episode.start_time)
+                        if nest_event:
+                            episode.source = DetectionSource.BOTH
+                            episode.snapshot_url = nest_event.get("snapshot_path")
+                            if nest_event.get("page_id"):
+                                # Upgrade existing Nest-only page
+                                self._notion.upgrade_to_both(nest_event["page_id"], episode)
+                                logger.info("Upgraded Nest event to Both: %s", nest_event["page_id"])
+                                continue
+                        else:
+                            episode.source = DetectionSource.YAMNET
+
+                        # Log to Notion + Telegram
                         page_id = self._notion.log_episode(episode)
                         if self._telegram.enabled:
                             msg_id = self._telegram.send_bark_notification(episode, page_id)
                             if msg_id and page_id:
                                 self._notion.set_telegram_message_id(page_id, msg_id)
 
-                # Stop if silence exceeds timeout and no active episode
-                if (
-                    consecutive_silence >= max_silence_frames
-                    and not tracker.is_active
-                ):
-                    logger.info(
-                        "Extended silence detected (%d frames), stopping stream",
-                        consecutive_silence,
-                    )
-                    break
+                    # If episode just ended, stop recording if still going
+                    if was_active and not tracker.is_active and recording:
+                        stream.stop_recording()
+                        recording = False
 
-        except Exception:
-            logger.exception("Error processing sound event")
-        finally:
-            # Finalize any in-progress episode
-            remaining = tracker.force_end()
-            if remaining:
-                remaining.snapshot_url = snapshot_path
-                remaining.clip_path = clip_path if 'clip_path' in dir() else None
-                remaining.nest_link = nest_link
-                remaining.camera_name = camera_name
-                bark_confirmed = True
+                    # Periodically clean up old Nest events
+                    if self._classifier._frame_count % 120 == 0:
+                        self._cleanup_old_nest_events(device_id)
 
-                if preliminary_page_id:
-                    self._notion.update_episode(preliminary_page_id, remaining)
-                    if self._telegram.enabled and preliminary_msg_id:
-                        self._telegram.update_bark_notification(preliminary_msg_id, remaining)
-                    preliminary_page_id = None
-                    preliminary_msg_id = None
-                else:
+            except Exception:
+                logger.exception("Error in classification loop for %s", camera_name)
+            finally:
+                # Finalize any in-progress episode
+                remaining = tracker.force_end()
+                if remaining:
+                    if recording:
+                        stream.stop_recording()
+                        recording = False
+                    remaining.camera_name = camera_name
+                    remaining.nest_link = nest_link
+                    remaining.clip_path = clip_path
+
+                    nest_event = self._find_matching_nest_event(device_id, remaining.start_time)
+                    if nest_event:
+                        remaining.source = DetectionSource.BOTH
+                        remaining.snapshot_url = nest_event.get("snapshot_path")
+
                     page_id = self._notion.log_episode(remaining)
                     if self._telegram.enabled:
                         msg_id = self._telegram.send_bark_notification(remaining, page_id)
                         if msg_id and page_id:
                             self._notion.set_telegram_message_id(page_id, msg_id)
 
-            # If no bark was confirmed, mark preliminary as unconfirmed
-            if not bark_confirmed and preliminary_page_id:
-                try:
-                    self._notion.mark_unconfirmed(preliminary_page_id, camera_name)
-                    if self._telegram.enabled and preliminary_msg_id:
-                        self._telegram.update_unconfirmed_notification(preliminary_msg_id, camera_name)
-                    logger.info("Marked preliminary page as unconfirmed: %s", preliminary_page_id)
-                except Exception:
-                    logger.exception("Failed to mark preliminary as unconfirmed")
+                stream.stop()
 
-            stream.stop()
-            with self._lock:
-                self._processing = False
-                self._processing_since = None
+            # Reconnect if still within monitoring window
+            if self._monitor_active.is_set() and not self._shutdown.is_set():
+                logger.info("Reconnecting in %ds...", reconnect_delay)
+                self._shutdown.wait(timeout=reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60)  # Exponential backoff, max 60s
+
+        logger.info("Classification loop ended for %s", camera_name)
+
+    # --- Monitor schedule ---
+
+    def _run_monitor_schedule(self):
+        """Start/stop RTSP monitoring based on configured hours."""
+        while not self._shutdown.is_set():
+            now = datetime.now(self._tz)
+            start_time = now.replace(
+                hour=settings.monitor_start_hour,
+                minute=settings.monitor_start_minute,
+                second=0, microsecond=0,
+            )
+            end_time = now.replace(
+                hour=settings.monitor_end_hour,
+                minute=settings.monitor_end_minute,
+                second=0, microsecond=0,
+            )
+
+            if start_time <= now < end_time:
+                # Within monitoring window
+                wait_seconds = (end_time - now).total_seconds()
+                logger.info(
+                    "Monitoring window active until %s (%s) — %.0f minutes remaining",
+                    end_time.strftime("%I:%M %p"), settings.timezone,
+                    wait_seconds / 60,
+                )
+                self._start_monitoring()
+                self._shutdown.wait(timeout=wait_seconds)
+                self._stop_monitoring()
+            else:
+                # Outside window — wait until next start
+                if now >= end_time:
+                    next_start = start_time + timedelta(days=1)
+                else:
+                    next_start = start_time
+                wait_seconds = (next_start - now).total_seconds()
+                logger.info(
+                    "Outside monitoring window. Next start: %s (%s) — %.0f minutes",
+                    next_start.strftime("%I:%M %p"), settings.timezone,
+                    wait_seconds / 60,
+                )
+                self._shutdown.wait(timeout=wait_seconds)
+
+    def _start_monitoring(self):
+        """Start classification loops for all configured cameras."""
+        if self._monitor_active.is_set():
+            return
+
+        self._monitor_active.set()
+        camera_ids = settings.get_camera_ids()
+
+        if not camera_ids:
+            # "all" mode: discover cameras
+            try:
+                devices = self._sdm.list_devices()
+                camera_ids = [
+                    d["name"] for d in devices
+                    if "sdm.devices.traits.CameraLiveStream" in d.get("traits", {})
+                ]
+            except Exception:
+                logger.exception("Failed to discover cameras")
+                return
+
+        for device_id in camera_ids:
+            camera_name = settings.get_camera_name(device_id)
+            logger.info("Starting always-on monitoring for %s", camera_name)
+            thread = threading.Thread(
+                target=self._run_classification_loop,
+                args=(device_id,),
+                daemon=True,
+                name=f"monitor-{camera_name}",
+            )
+            thread.start()
+
+    def _stop_monitoring(self):
+        """Signal classification loops to stop."""
+        logger.info("Stopping monitoring (end of window)")
+        self._monitor_active.clear()
+        # Classification loops will exit on their next iteration
+
+    # --- Main entry point ---
 
     def run(self):
-        """Main entry point - start listening for events."""
-        logger.info("Barkup starting...")
+        """Main entry point."""
+        logger.info("Barkup starting (always-on mode)...")
+        logger.info(
+            "Monitor window: %02d:%02d – %02d:%02d %s",
+            settings.monitor_start_hour, settings.monitor_start_minute,
+            settings.monitor_end_hour, settings.monitor_end_minute,
+            settings.timezone,
+        )
         camera_ids = settings.get_camera_ids()
         if camera_ids:
             for cid in camera_ids:
@@ -257,6 +385,15 @@ class BarkupOrchestrator:
         else:
             logger.info("Cameras: all linked devices")
         logger.info("Notion DB: %s", settings.notion_database_id)
+
+        # Graceful shutdown
+        def shutdown_handler(signum, frame):
+            logger.info("Shutdown signal received")
+            self._shutdown.set()
+            self._monitor_active.clear()
+
+        signal.signal(signal.SIGTERM, shutdown_handler)
+        signal.signal(signal.SIGINT, shutdown_handler)
 
         # Start Telegram bot polling for replies
         if self._telegram.enabled:
@@ -271,13 +408,21 @@ class BarkupOrchestrator:
                 callback=self._send_nightly_summary,
             )
             self._scheduler.start()
-            logger.info("Nightly summary scheduled for %s:%02d", settings.summary_hour, settings.summary_minute)
+            logger.info("Nightly summary scheduled for %02d:%02d", settings.summary_hour, settings.summary_minute)
         else:
             logger.info("Telegram not configured, notifications disabled")
 
+        # Start Pub/Sub listener in background (for snapshots + cross-referencing)
         from barkup.pubsub_listener import PubSubListener
         listener = PubSubListener(on_camera_event=self._on_camera_event)
-        listener.start()
+        pubsub_thread = threading.Thread(target=listener.start, daemon=True, name="pubsub")
+        pubsub_thread.start()
+        logger.info("Pub/Sub listener started (snapshots + cross-referencing)")
+
+        # Run monitor schedule (blocks until shutdown)
+        self._run_monitor_schedule()
+
+        logger.info("Barkup shutting down")
 
 
 def list_devices():

@@ -8,7 +8,7 @@ import httpx
 from notion_client import Client
 
 from barkup.config import settings
-from barkup.models import Episode
+from barkup.models import DetectionSource, Episode
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,7 @@ class NotionLogger:
             "Confidence": {"number": episode.peak_confidence},
             "Bark Type": {"select": {"name": episode.dominant_bark_type.value}},
         }
+        properties["Source"] = {"select": {"name": episode.source.value}}
         if episode.clip_path:
             properties["Notes"] = {"rich_text": [{"text": {"content": f"Local clip: {episode.clip_path}"}}]}
 
@@ -100,6 +101,49 @@ class NotionLogger:
             },
         )
         logger.info("Marked page as unconfirmed: %s", page_id)
+
+    def log_nest_event(self, timestamp: datetime, event_type: str,
+                       camera_name: str | None = None, nest_link: str | None = None,
+                       snapshot_path: str | None = None) -> str:
+        """Log a Nest-only event (Sound/Bark detected by Nest, not confirmed by YAMNet).
+        Returns the created page ID."""
+        tz = ZoneInfo(settings.timezone)
+        start = timestamp if timestamp.tzinfo else timestamp.replace(tzinfo=ZoneInfo("UTC"))
+        local_time = start.astimezone(tz).strftime("%I:%M %p")
+        cam_prefix = f"[{camera_name}] " if camera_name else ""
+        # Map Nest event type to readable name
+        event_label = event_type.split(".")[-1] if "." in event_type else event_type
+        title = f"{cam_prefix}Nest {event_label} - {local_time}"
+
+        properties = {
+            "Event": {"title": [{"text": {"content": title}}]},
+            "Date/Time": {"date": {"start": start.isoformat()}},
+            "Bark Type": {"select": {"name": "Unconfirmed"}},
+            "Confidence": {"number": 0},
+            "Source": {"select": {"name": DetectionSource.NEST.value}},
+            "Reason": {"select": {"name": "Unknown"}},
+            "Owner Home": {"checkbox": False},
+            "Intervened": {"checkbox": False},
+        }
+        if camera_name:
+            properties["Camera"] = {"select": {"name": camera_name}}
+        if nest_link:
+            properties["Nest Link"] = {"url": nest_link}
+        if snapshot_path:
+            properties["Notes"] = {"rich_text": [{"text": {"content": f"Snapshot: {snapshot_path}"}}]}
+
+        page = self._client.pages.create(
+            parent={"database_id": self._database_id},
+            properties=properties,
+        )
+        page_id = page.get("id", "")
+        logger.info("Logged Nest-only event to Notion: %s", page_id)
+        return page_id
+
+    def upgrade_to_both(self, page_id: str, episode: Episode):
+        """Upgrade a Nest-only event to 'Both' when YAMNet also confirms it."""
+        episode.source = DetectionSource.BOTH
+        self.update_episode(page_id, episode)
 
     def log_episode(self, episode: Episode) -> str:
         """
@@ -138,6 +182,7 @@ class NotionLogger:
             "Reason": {"select": {"name": "Unknown"}},
             "Owner Home": {"checkbox": False},
             "Intervened": {"checkbox": False},
+            "Source": {"select": {"name": episode.source.value}},
         }
 
         if episode.camera_name:
@@ -302,6 +347,8 @@ class NotionLogger:
             bark_type = bark_type_sel["name"] if bark_type_sel else "Bark"
             camera_sel = props.get("Camera", {}).get("select")
             camera = camera_sel["name"] if camera_sel else None
+            source_sel = props.get("Source", {}).get("select")
+            source = source_sel["name"] if source_sel else "YAMNet"
 
             episodes.append({
                 "title": title,
@@ -311,6 +358,7 @@ class NotionLogger:
                 "bark_count": bark_count,
                 "bark_type": bark_type,
                 "camera": camera,
+                "source": source,
             })
 
         return episodes
