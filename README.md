@@ -27,7 +27,8 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - 🚫 **False Positive Filtering** — Multi-layered: suppresses when TV, speech, music, or household impacts (bangs, clatters, doors) score higher than bark. Plus uses a sliding window requiring 2+ bark frames within 5 frames to confirm an episode — single bangs get discarded.
 - 🎯 **Always-On Monitoring** — Continuous RTSP audio stream during configurable hours (default 7:30 AM – 8:30 PM). Zero detection latency — barks are caught within 1 second. Auto-reconnects on stream failure with exponential backoff.
 - 🔀 **Cross-Referencing** — YAMNet detections are cross-referenced with Nest Sound events. Each bark is tagged with its source: "YAMNet" (AI only), "Nest" (Google only), or "Both" (both agree). Build ground truth by replying to validate or dismiss.
-- 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply `not bark` to flag false positives, or reply naturally to log context. Any unrecognised reply is saved as a comment on the Notion page.
+- 🎬 **Audio & Video Clips** — Records audio and video during bark episodes only (not continuously). Reply `clip`, `video`, or `snapshot` to any Telegram notification to get the files sent straight to you.
+- 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply `not bark` to flag false positives, `was bark` to confirm Nest-only events, or reply naturally to log context. Any unrecognised reply is saved as a comment on the Notion page.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
 - 📝 **Daily & On-Demand Summaries** — Nightly report at 8:30pm, or message the bot anytime: `summary`, `summary yesterday`, `summary last week`, `summary this week`, or `summary March 5`. Evidence on demand.
 - 🔗 **Nest Cam Links** — Jump straight to the camera footage for any event.
