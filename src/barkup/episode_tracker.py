@@ -18,6 +18,9 @@ class EpisodeTracker:
 
     def __init__(self, event_timestamp: datetime | None = None):
         self._state = "IDLE"
+        # Strip timezone to keep all datetimes naive (consistent with datetime.now())
+        if event_timestamp and event_timestamp.tzinfo is not None:
+            event_timestamp = event_timestamp.replace(tzinfo=None)
         self._event_timestamp = event_timestamp
         self._episode_start: datetime | None = None
         self._last_bark_time: datetime | None = None
