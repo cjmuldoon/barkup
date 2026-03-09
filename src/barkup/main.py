@@ -278,7 +278,9 @@ class BarkupOrchestrator:
                         if msg_id and page_id:
                             self._notion.set_telegram_message_id(page_id, msg_id)
 
-                stream.stop()
+                # Don't release server-side stream if we're about to reconnect
+                will_reconnect = self._monitor_active.is_set() and not self._shutdown.is_set()
+                stream.stop(release_stream=not will_reconnect)
 
             # Reconnect if still within monitoring window
             if self._monitor_active.is_set() and not self._shutdown.is_set():

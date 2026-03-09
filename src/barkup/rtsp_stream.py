@@ -128,8 +128,13 @@ class RTSPStream:
         except Exception:
             logger.exception("Failed to extend RTSP stream")
 
-    def stop(self):
-        """Stop the stream and clean up."""
+    def stop(self, release_stream: bool = True):
+        """Stop the stream and clean up.
+
+        Args:
+            release_stream: If True, also release the server-side stream via API.
+                           Set False when you plan to reconnect immediately.
+        """
         self._active = False
         if self._extend_timer:
             self._extend_timer.cancel()
@@ -151,10 +156,11 @@ class RTSPStream:
                 self._recording_process.kill()
                 self._recording_process.wait(timeout=5)
             self._recording_process = None
-        if self._stream_token:
+        if release_stream and self._stream_token:
             try:
                 self._sdm.stop_rtsp_stream(self._device_id, self._stream_token)
             except Exception:
                 logger.exception("Failed to stop RTSP stream via API")
-            self._stream_token = None
-        logger.info("RTSP stream stopped")
+        self._stream_token = None
+        self._rtsp_url = None
+        logger.info("RTSP stream stopped (release=%s)", release_stream)

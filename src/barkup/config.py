@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     monitor_start_minute: int = 30
     monitor_end_hour: int = 20
     monitor_end_minute: int = 30
-    stream_reconnect_delay: int = 5  # seconds between reconnect attempts
+    stream_reconnect_delay: int = 10  # seconds between reconnect attempts
 
     # Clip storage
     clip_storage_path: str = "./clips"
