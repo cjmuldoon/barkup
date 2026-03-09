@@ -42,6 +42,15 @@ SUPPRESS_CLASSES = {
     291,  # Video game music
 }
 
+# Readable names for classes we care about (for logging)
+CLASS_NAMES = {
+    0: "Speech", 1: "Child speech", 2: "Conversation", 3: "Narration",
+    4: "Babbling", 5: "Speech synth", 6: "Shout", 10: "Singing",
+    11: "Choir", 69: "Dog", 70: "Bark", 71: "Yip", 72: "Howl",
+    74: "Growling", 75: "Whimper", 137: "Music", 138: "Instrument",
+    289: "Television", 290: "Radio", 291: "Game music",
+}
+
 MODEL_PATH = os.environ.get(
     "YAMNET_MODEL_PATH",
     str(Path(__file__).parent.parent.parent / "models" / "yamnet.tflite"),
@@ -53,6 +62,7 @@ class BarkClassifier:
         self._interpreter = None
         self._input_details = None
         self._output_details = None
+        self._frame_count = 0
         self._load_model()
 
     def _load_model(self):
@@ -112,15 +122,40 @@ class BarkClassifier:
         is_bark = best_confidence >= settings.bark_confidence_threshold
 
         # Negative class filter: suppress if speech/music/TV scores higher
+        suppressed = False
         if is_bark:
             suppress_score = max(float(scores[i]) for i in SUPPRESS_CLASSES)
             if suppress_score > best_confidence:
+                suppress_class = max(SUPPRESS_CLASSES, key=lambda i: scores[i])
                 logger.info(
-                    "Bark suppressed: bark=%.3f, suppress=%.3f (class %d)",
-                    best_confidence, suppress_score,
-                    max(SUPPRESS_CLASSES, key=lambda i: scores[i]),
+                    "Bark suppressed: bark=%.3f, %s=%.3f",
+                    best_confidence,
+                    CLASS_NAMES.get(suppress_class, f"class {suppress_class}"),
+                    suppress_score,
                 )
                 is_bark = False
+                suppressed = True
+
+        # Log every frame so we can see what YAMNet is hearing
+        self._frame_count += 1
+        top_class = int(np.argmax(scores))
+        top_name = CLASS_NAMES.get(top_class, f"class {top_class}")
+        top_score = float(scores[top_class])
+        if is_bark:
+            logger.info(
+                "Frame %d: BARK detected (%.3f, %s) | top: %s=%.3f",
+                self._frame_count, best_confidence, best_type.value,
+                top_name, top_score,
+            )
+        elif suppressed:
+            pass  # Already logged above
+        elif self._frame_count % 10 == 0:
+            # Log every 10th non-bark frame to avoid spam
+            dog_str = f"dog={best_confidence:.3f}" if best_confidence > 0.01 else ""
+            logger.info(
+                "Frame %d: %s=%.3f %s",
+                self._frame_count, top_name, top_score, dog_str,
+            )
 
         return BarkDetection(
             timestamp=datetime.now(),
