@@ -9,6 +9,7 @@ import logging
 import signal
 import threading
 import time
+import wave
 from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -202,6 +203,8 @@ class BarkupOrchestrator:
         from barkup.models import DetectionSource
         from barkup.rtsp_stream import RTSPStream
 
+        from barkup.rtsp_stream import SAMPLE_RATE, CHANNELS, SAMPLE_WIDTH
+
         camera_name = settings.get_camera_name(device_id)
         device_parts = device_id.split("/")
         camera_id = device_parts[-1] if device_parts else ""
@@ -214,6 +217,7 @@ class BarkupOrchestrator:
             tracker = EpisodeTracker()
             clip_path = None
             video_path = None
+            wav_writer = None
             recording = False
 
             try:
@@ -232,21 +236,42 @@ class BarkupOrchestrator:
 
                     episode = tracker.process(detection)
 
+                    # Write audio frame to WAV if recording
+                    if recording and wav_writer:
+                        try:
+                            wav_writer.writeframes(frame)
+                        except Exception:
+                            logger.exception("Failed to write audio frame")
+
                     # Start recording when episode begins
                     if tracker.is_active and not was_active and not recording:
                         clip_dir = Path(settings.clip_storage_path)
                         clip_dir.mkdir(parents=True, exist_ok=True)
                         ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        clip_path = str(clip_dir / f"bark_{ts_str}.aac")
+                        clip_path = str(clip_dir / f"bark_{ts_str}.wav")
                         video_path = str(clip_dir / f"bark_{ts_str}.mp4")
-                        stream.start_recording(clip_path)
+                        # Write audio directly from PCM frames (no extra ffmpeg)
+                        try:
+                            wav_writer = wave.open(clip_path, 'wb')
+                            wav_writer.setnchannels(CHANNELS)
+                            wav_writer.setsampwidth(SAMPLE_WIDTH)
+                            wav_writer.setframerate(SAMPLE_RATE)
+                            wav_writer.writeframes(frame)  # Include this first bark frame
+                        except Exception:
+                            logger.exception("Failed to start WAV recording")
+                            wav_writer = None
                         stream.start_video_recording(video_path)
                         recording = True
 
                     if episode:
                         # Stop recording
                         if recording:
-                            stream.stop_recording()
+                            if wav_writer:
+                                try:
+                                    wav_writer.close()
+                                except Exception:
+                                    pass
+                                wav_writer = None
                             stream.stop_video_recording()
                             recording = False
 
@@ -288,7 +313,12 @@ class BarkupOrchestrator:
 
                     # If tracker went inactive without producing an episode, it was discarded
                     if was_active and not tracker.is_active and recording and not episode:
-                        stream.stop_recording()
+                        if wav_writer:
+                            try:
+                                wav_writer.close()
+                            except Exception:
+                                pass
+                            wav_writer = None
                         stream.stop_video_recording()
                         recording = False
                         # Clean up clip files from discarded pending episode
@@ -313,7 +343,12 @@ class BarkupOrchestrator:
                 remaining = tracker.force_end()
                 if remaining:
                     if recording:
-                        stream.stop_recording()
+                        if wav_writer:
+                            try:
+                                wav_writer.close()
+                            except Exception:
+                                pass
+                            wav_writer = None
                         stream.stop_video_recording()
                         recording = False
                     remaining.camera_name = camera_name

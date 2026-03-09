@@ -214,8 +214,8 @@ class NotionLogger:
         """Update a Notion page with intervention details from Telegram reply."""
         properties = {}
 
-        if fields.get("was_home"):
-            properties["Owner Home"] = {"checkbox": True}
+        if "was_home" in fields:
+            properties["Owner Home"] = {"checkbox": fields["was_home"]}
         if fields.get("intervened"):
             properties["Intervened"] = {"checkbox": True}
         if fields.get("reason"):

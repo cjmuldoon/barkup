@@ -169,7 +169,7 @@ class TelegramBot:
             return
 
         method_map = {
-            "clip": ("sendAudio", "audio"),
+            "clip": ("sendDocument", "document"),
             "video": ("sendVideo", "video"),
             "snapshot": ("sendPhoto", "photo"),
         }
@@ -337,15 +337,21 @@ class TelegramBot:
             result["not_bark"] = True
             return result
 
-        # Check for "was bark" / "confirmed" — validates Nest-only or unconfirmed events
+        # Check for "was bark" / "confirmed" / "genuine" / "real" — validates events
         was_bark_phrases = ["was bark", "was a bark", "confirmed", "actually bark",
-                           "real bark", "yes bark", "was barking"]
+                           "real bark", "yes bark", "was barking", "genuine", "real"]
         if any(phrase in text_lower for phrase in was_bark_phrases):
             result["was_bark"] = True
-            return result
+            # Don't return early — continue parsing for home/away/reason
 
-        # Check for "home" / "was home"
-        if "home" in text_lower:
+        # Check for "away" / "out" / "not home" → explicitly not home
+        away_phrases = ["away", "not home", "wasn't home", "wasnt home", "weren't home",
+                        "werent home", "nobody home", "no one home", "not at home"]
+        if any(phrase in text_lower for phrase in away_phrases):
+            result["was_home"] = False
+
+        # Check for "home" / "was home" (only if not already set to False above)
+        elif "home" in text_lower:
             result["was_home"] = True
 
         # Check for intervention
@@ -582,28 +588,41 @@ class TelegramBot:
                     self._send(
                         "sendMessage",
                         chat_id=self._chat_id,
-                        text=f"❌ File retrieval not available",
+                        text="❌ File retrieval not available",
                         reply_to_message_id=message.get("message_id"),
                     )
                 return
             elif fields.get("not_bark"):
                 self._notion.update_bark_type(page_id, "Not Bark")
                 confirmations.append("✅ Marked as Not Bark")
-            elif fields.get("was_bark"):
-                self._notion.update_bark_type(page_id, "Bark")
-                confirmations.append("✅ Confirmed as Bark")
-            elif fields.get("comment"):
-                self._notion.add_comment(page_id, fields["comment"])
-                confirmations.append(f"💬 Comment added")
             else:
-                if self._on_intervention and fields:
-                    self._on_intervention(page_id, fields)
-                if fields.get("was_home"):
-                    confirmations.append("✅ Marked as home")
+                if fields.get("was_bark"):
+                    self._notion.update_bark_type(page_id, "Bark")
+                    confirmations.append("✅ Confirmed as Bark")
+
+                # Process home/away, intervention, reason alongside was_bark
+                intervention_fields = {}
+                if "was_home" in fields:
+                    intervention_fields["was_home"] = fields["was_home"]
+                    if fields["was_home"]:
+                        confirmations.append("✅ Marked as home")
+                    else:
+                        confirmations.append("✅ Marked as away")
                 if fields.get("intervened"):
+                    intervention_fields["intervened"] = True
                     confirmations.append("✅ Marked as intervened")
                 if fields.get("reason"):
+                    intervention_fields["reason"] = fields["reason"]
                     confirmations.append(f"✅ Reason: {fields['reason']}")
+
+                if intervention_fields and self._on_intervention:
+                    self._on_intervention(page_id, intervention_fields)
+
+                # If nothing was parsed, treat as comment
+                if not confirmations:
+                    comment_text = text.strip()
+                    self._notion.add_comment(page_id, comment_text)
+                    confirmations.append("💬 Comment added")
 
             self._send(
                 "sendMessage",
