@@ -222,6 +222,7 @@ class NotionLogger:
             # Map common reasons to select options
             reason_map = {
                 "stranger": "Stranger",
+                "delivery": "Delivery",
                 "animal": "Animal",
                 "boredom": "Boredom",
                 "anxiety": "Anxiety",

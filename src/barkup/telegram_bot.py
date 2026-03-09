@@ -371,9 +371,12 @@ class TelegramBot:
         # Check for known reason keywords directly
         reason_keywords = {
             "stranger": "Stranger", "someone": "Stranger", "person": "Stranger",
-            "delivery": "Stranger", "postman": "Stranger", "mailman": "Stranger",
-            "animal": "Animal", "cat": "Animal", "dog": "Animal", "bird": "Animal",
-            "squirrel": "Animal", "possum": "Animal",
+            "delivery": "Delivery", "postman": "Delivery", "mailman": "Delivery",
+            "courier": "Delivery", "parcel": "Delivery", "package": "Delivery",
+            "auspost": "Delivery", "amazon": "Delivery",
+            "animal": "Animal", "cat": "Animal", "bird": "Animal",
+            "squirrel": "Animal", "possum": "Animal", "shadow": "Animal",
+            "dog": "Animal",
             "bored": "Boredom", "boredom": "Boredom", "nothing": "Boredom",
             "anxious": "Anxiety", "anxiety": "Anxiety", "scared": "Anxiety",
             "separation": "Anxiety",
