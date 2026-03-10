@@ -68,6 +68,7 @@ class BarkupOrchestrator:
         self._shutdown = threading.Event()
         self._monitor_active = threading.Event()
         self._start_time = time.time()
+        self._monitor_start_time = None  # Set when monitoring window starts
 
         # File path cache: page_id -> {clip_path, video_path, snapshot_path}
         self._file_cache: dict[str, dict[str, str]] = {}
@@ -122,12 +123,12 @@ class BarkupOrchestrator:
         """Collect system health metrics."""
         import shutil
 
-        # Frame processing rate
+        # Frame processing rate (based on monitoring time, not total uptime)
         frames = self._classifier._frame_count
-        uptime_seconds = time.time() - self._start_time if hasattr(self, '_start_time') else 0
-        uptime_hours = uptime_seconds / 3600
-        # Each frame is ~0.975s of audio; expected = uptime / 0.975
-        expected = uptime_seconds / 0.975 if uptime_seconds > 0 else 1
+        monitor_seconds = time.time() - self._monitor_start_time if self._monitor_start_time else 0
+        monitor_hours = monitor_seconds / 3600
+        # Each frame is ~0.975s of audio; expected = monitoring_time / 0.975
+        expected = monitor_seconds / 0.975 if monitor_seconds > 0 else 1
         processing_pct = (frames / expected) * 100 if expected > 0 else 0
 
         # Disk usage
@@ -147,7 +148,7 @@ class BarkupOrchestrator:
         clip_size_mb = clip_size / (1024 * 1024)
 
         return {
-            "uptime_hours": uptime_hours,
+            "uptime_hours": monitor_hours,
             "frames_processed": frames,
             "frames_expected": int(expected),
             "processing_pct": min(processing_pct, 100),
@@ -504,6 +505,7 @@ class BarkupOrchestrator:
         # Daily cleanup of old clip files
         cleanup_old_clips(settings.clip_storage_path)
 
+        self._monitor_start_time = time.time()
         self._monitor_active.set()
         camera_ids = settings.get_camera_ids()
 
