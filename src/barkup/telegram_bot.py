@@ -571,7 +571,7 @@ class TelegramBot:
         if not_barks:
             parts.append(f"{len(not_barks)} false")
         if unconfirmed:
-            parts.append(f"{len(unconfirmed)} unconf")
+            parts.append(f"{len(unconfirmed)} unconfirmed")
         return f"  {label}: {' | '.join(parts)}\n"
 
     def _build_grouped_summary(self, episodes: list[dict], label: str,
