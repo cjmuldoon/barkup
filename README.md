@@ -57,7 +57,7 @@ Nest Cam → Google Pub/Sub → Snapshots + Cross-Referencing
 
 ## Deployment
 
-We run ours on an $18/month DigitalOcean droplet (2 vCPU) for convenience. YAMNet needs ~1 second per inference frame, so **2 vCPUs is the minimum for real-time processing** — a 1 vCPU box will fall behind and miss detections. A small price to pay for vindication. You've got plenty of options:
+We run ours on a Hetzner CX22 (2 vCPU, 4GB RAM) for ~€3.79/month — cheaper than a coffee. YAMNet needs ~1 second per inference frame, so **2 vCPUs is the minimum for real-time processing** — a 1 vCPU box will fall behind and miss detections. A small price to pay for vindication. You've got plenty of options:
 
 - **Cloud VPS** — Hetzner CX22 (~€3.79/mo for 2 vCPU/4GB — best value), DigitalOcean ($18/mo for 2 vCPU/1GB), or any cheap VPS with Docker and 2+ cores
 - **Home PC / Mac** — if you've got something always on, just `docker compose up -d`
