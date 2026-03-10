@@ -70,6 +70,7 @@ class BarkupOrchestrator:
         self._monitor_active = threading.Event()
         self._start_time = time.time()
         self._monitor_start_time = None  # Set when monitoring window starts
+        self._monitor_start_frames = 0  # Frame count at window start
 
         # File path cache: page_id -> {clip_path, video_path, snapshot_path}
         self._file_cache: dict[str, dict[str, str]] = {}
@@ -124,8 +125,10 @@ class BarkupOrchestrator:
         """Collect system health metrics."""
         import shutil
 
-        # Frame processing rate (based on monitoring time, not total uptime)
-        frames = self._classifier._frame_count
+        # Frame processing rate (based on today's monitoring window only)
+        total_frames = self._classifier._frame_count
+        start_frames = self._monitor_start_frames if hasattr(self, '_monitor_start_frames') else 0
+        frames = total_frames - start_frames
         monitor_seconds = time.time() - self._monitor_start_time if self._monitor_start_time else 0
         monitor_hours = monitor_seconds / 3600
         # Each frame is ~0.975s of audio; expected = monitoring_time / 0.975
@@ -300,7 +303,8 @@ class BarkupOrchestrator:
                 reconnect_delay = settings.stream_reconnect_delay  # Reset on success
 
                 _skip_next = False
-                _frame_times = []  # Rolling window of recent inference times
+                _last_frame_time = time.time()
+                _frame_intervals = []  # Rolling window of frame-to-frame wall-clock times
 
                 while self._monitor_active.is_set() and not self._shutdown.is_set():
                     frame = stream.read_frame()
@@ -308,26 +312,30 @@ class BarkupOrchestrator:
                         logger.warning("RTSP stream ended for %s, will reconnect", camera_name)
                         break
 
-                    # Adaptive frame skipping: if recent inference averages > 1.0s,
-                    # skip every other frame to stay near real-time.
+                    # Adaptive frame skipping: if we're falling behind real-time,
+                    # skip every other frame to catch up.
                     # Never skip during active recording (preserve full audio clips).
                     if _skip_next and not recording:
                         _skip_next = False
+                        _last_frame_time = time.time()
                         continue
 
-                    t0 = time.time()
-                    detection = self._classifier.classify_frame(frame)
-                    elapsed = time.time() - t0
+                    now = time.time()
+                    interval = now - _last_frame_time
+                    _last_frame_time = now
 
-                    _frame_times.append(elapsed)
-                    if len(_frame_times) > 20:
-                        _frame_times.pop(0)
-                    if len(_frame_times) >= 10:
-                        avg = sum(_frame_times) / len(_frame_times)
-                        if avg > 1.0:
+                    detection = self._classifier.classify_frame(frame)
+
+                    _frame_intervals.append(interval)
+                    if len(_frame_intervals) > 20:
+                        _frame_intervals.pop(0)
+                    # Each audio frame is 0.975s; if avg interval > 1.0s we're behind
+                    if len(_frame_intervals) >= 5:
+                        avg = sum(_frame_intervals) / len(_frame_intervals)
+                        if avg > 1.05:
                             _skip_next = True
                             if self._classifier._frame_count % 50 == 0:
-                                logger.info("Frame skipping active (avg inference: %.2fs)", avg)
+                                logger.info("Frame skipping active (avg interval: %.2fs)", avg)
                     was_active = tracker.is_active
 
                     episode = tracker.process(detection)
@@ -529,6 +537,7 @@ class BarkupOrchestrator:
         cleanup_old_clips(settings.clip_storage_path)
 
         self._monitor_start_time = time.time()
+        self._monitor_start_frames = self._classifier._frame_count
         self._monitor_active.set()
         camera_ids = settings.get_camera_ids()
 
