@@ -298,13 +298,35 @@ class BarkupOrchestrator:
                 stream.start()
                 reconnect_delay = settings.stream_reconnect_delay  # Reset on success
 
+                _skip_next = False
+                _frame_times = []  # Rolling window of recent inference times
+
                 while self._monitor_active.is_set() and not self._shutdown.is_set():
                     frame = stream.read_frame()
                     if frame is None:
                         logger.warning("RTSP stream ended for %s, will reconnect", camera_name)
                         break
 
+                    # Adaptive frame skipping: if recent inference averages > 1.0s,
+                    # skip every other frame to stay near real-time.
+                    # Never skip during active recording (preserve full audio clips).
+                    if _skip_next and not recording:
+                        _skip_next = False
+                        continue
+
+                    t0 = time.time()
                     detection = self._classifier.classify_frame(frame)
+                    elapsed = time.time() - t0
+
+                    _frame_times.append(elapsed)
+                    if len(_frame_times) > 20:
+                        _frame_times.pop(0)
+                    if len(_frame_times) >= 10:
+                        avg = sum(_frame_times) / len(_frame_times)
+                        if avg > 1.0:
+                            _skip_next = True
+                            if self._classifier._frame_count % 50 == 0:
+                                logger.info("Frame skipping active (avg inference: %.2fs)", avg)
                     was_active = tracker.is_active
 
                     episode = tracker.process(detection)
