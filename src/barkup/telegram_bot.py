@@ -463,7 +463,11 @@ class TelegramBot:
                 result["reason"] = reason_text
                 return result
 
-        # Check for known reason keywords directly
+        # Check for known reason keywords directly.
+        # Only match short, keyword-style replies (up to 5 words) to avoid
+        # false matches in longer commentary like "Tony doing something next door".
+        import re
+        words = text_lower.split()
         reason_keywords = {
             "stranger": "Stranger", "someone": "Stranger", "person": "Stranger",
             "delivery": "Delivery", "postman": "Delivery", "mailman": "Delivery",
@@ -474,13 +478,14 @@ class TelegramBot:
             "bored": "Boredom", "boredom": "Boredom", "nothing": "Boredom",
             "anxious": "Anxiety", "anxiety": "Anxiety", "scared": "Anxiety",
             "separation": "Anxiety",
-            "doorbell": "Doorbell", "door": "Doorbell", "knock": "Doorbell",
-            "ring": "Doorbell",
+            "doorbell": "Doorbell", "knock": "Doorbell",
         }
-        for keyword, reason in reason_keywords.items():
-            if keyword in text_lower:
-                result["reason"] = reason
-                break
+        if len(words) <= 5:
+            for keyword, reason in reason_keywords.items():
+                # Match whole words only
+                if re.search(rf'\b{keyword}\b', text_lower):
+                    result["reason"] = reason
+                    break
 
         # If nothing matched, treat the whole text as a comment
         if not result:
