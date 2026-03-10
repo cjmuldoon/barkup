@@ -487,13 +487,13 @@ class TelegramBot:
             end = this_monday.strftime("%Y-%m-%d")
             return start, end, f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d')}", "weekly"
 
-        if arg == "this week" or arg == "week":
+        if arg in ("this week", "week", "weekly"):
             monday = now - timedelta(days=now.weekday())
             start = monday.strftime("%Y-%m-%d")
             end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
             return start, end, f"{monday.strftime('%b %d')} – {now.strftime('%b %d')}", "weekly"
 
-        if arg == "this month" or arg == "month":
+        if arg in ("this month", "month", "monthly"):
             first = now.replace(day=1)
             start = first.strftime("%Y-%m-%d")
             end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -507,7 +507,7 @@ class TelegramBot:
             end = first_this_month.strftime("%Y-%m-%d")
             return start, end, first_last_month.strftime("%B %Y"), "monthly"
 
-        if arg == "this year" or arg == "year":
+        if arg in ("this year", "year", "yearly"):
             start = f"{now.year}-01-01"
             end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
             return start, end, str(now.year), "yearly"
