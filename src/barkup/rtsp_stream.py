@@ -54,7 +54,7 @@ class RTSPStream:
             "pipe:1",
         ]
         self._process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
         )
         logger.info("RTSP stream started, extracting audio via ffmpeg")
         self._schedule_extend()
@@ -131,11 +131,6 @@ class RTSPStream:
             return None
         data = self._process.stdout.read(FRAME_BYTES)
         if len(data) < FRAME_BYTES:
-            # Log ffmpeg stderr to help diagnose stream failures
-            if self._process.stderr:
-                stderr = self._process.stderr.read()
-                if stderr:
-                    logger.warning("ffmpeg stderr: %s", stderr.decode(errors="replace").strip())
             logger.warning("read_frame got %d/%d bytes (stream ended)", len(data), FRAME_BYTES)
             return None
         return data
