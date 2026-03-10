@@ -31,7 +31,7 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply `not bark` to flag false positives, `was bark` to confirm Nest-only events, or reply naturally to log context. Any unrecognised reply is saved as a comment on the Notion page.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
 - 📝 **Hierarchical Summaries** — Nightly report at 8:30pm with confirmed/not-bark/unconfirmed breakdown. On-demand: `summary week` gives daily breakdown, `summary month` gives weekly breakdown, `summary 2026` gives monthly breakdown. Stats (bark count, bark time, longest episode) are calculated from confirmed barks only.
-- 🔧 **Nightly Health Check** — After the daily summary, reports processing rate (% real-time), disk usage, and clip directory stats. Know immediately if the system is struggling.
+- 🔧 **Health Check** — Nightly report after the daily summary with processing rate (% real-time), disk usage, and clip directory stats. Also available on-demand: send `health` or `status` in Telegram anytime.
 - 🗑️ **Auto Clip Cleanup** — Videos auto-deleted after 7 days, audio and snapshots after 21 days. No manual housekeeping required.
 - 🔗 **Nest Cam Links** — Jump straight to the camera footage for any event.
 - 📷 **Multi-Camera Support** — Monitor multiple Nest Cams with friendly names. Each bark is tagged to the camera that heard it.
@@ -57,7 +57,7 @@ Nest Cam → Google Pub/Sub → Snapshots + Cross-Referencing
 
 ## Deployment
 
-We run ours on a Hetzner CX22 (2 vCPU, 4GB RAM) for ~€3.79/month — cheaper than a coffee. YAMNet needs ~1 second per inference frame, so **2 vCPUs is the minimum for real-time processing** — a 1 vCPU box will fall behind and miss detections. A small price to pay for vindication. You've got plenty of options:
+We run ours on a Hetzner CX22 (2 shared vCPU, 4GB RAM) for ~€3.79/month — cheaper than a coffee. YAMNet inference takes ~1 second per frame on modest hardware, so any box with 2+ cores will handle real-time processing comfortably. A small price to pay for vindication. You've got plenty of options:
 
 - **Cloud VPS** — Hetzner CX22 (~€3.79/mo for 2 vCPU/4GB — best value), DigitalOcean ($18/mo for 2 vCPU/1GB), or any cheap VPS with Docker and 2+ cores
 - **Home PC / Mac** — if you've got something always on, just `docker compose up -d`
@@ -92,7 +92,7 @@ bash scripts/deploy.sh
 
 **Reply to any bark notification naturally:**
 - `not bark` / `false positive` / `false alarm` — marks as Not Bark in Notion
-- `was bark` / `confirmed` / `real bark` / `genuine` — confirms as Bark (validates Nest-only detections)
+- `was bark` / `confirmed` / `barked` / `genuine` — confirms as Bark (validates Nest-only detections)
 - `clip` / `audio` / `sound` — sends the audio clip for that episode
 - `video` / `footage` — sends the video clip for that episode
 - `snapshot` / `photo` — sends the snapshot image
@@ -101,13 +101,14 @@ bash scripts/deploy.sh
 - `delivery` / `stranger` / `cat` / `boredom` / `anxiety` / `doorbell` — auto-detected reasons
 - Any other reply — saved as a comment on the Notion page
 
-**On-demand summaries (send as a new message, not a reply):**
+**On-demand commands (send as a new message, not a reply):**
 - `summary` — today's episodes (flat list)
 - `summary yesterday` / `summary March 5` — specific date (flat list)
-- `summary week` / `summary this week` / `summary last week` — daily breakdown
-- `summary month` / `summary this month` / `summary March` — weekly breakdown
-- `summary year` / `summary this year` / `summary 2026` — monthly breakdown
+- `summary week` / `summary weekly` / `summary last week` — daily breakdown
+- `summary month` / `summary monthly` / `summary March` — weekly breakdown
+- `summary year` / `summary yearly` / `summary 2026` — monthly breakdown
 - `summary last month` / `summary last year` — previous period
+- `health` / `status` — system health check (processing rate, disk, clips)
 
 ## The Verdict
 
