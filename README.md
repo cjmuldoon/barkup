@@ -59,7 +59,7 @@ Nest Cam → Google Pub/Sub → Snapshots + Cross-Referencing
 
 We run ours on an $18/month DigitalOcean droplet (2 vCPU) for convenience. YAMNet needs ~1 second per inference frame, so **2 vCPUs is the minimum for real-time processing** — a 1 vCPU box will fall behind and miss detections. A small price to pay for vindication. You've got plenty of options:
 
-- **Cloud VPS** — DigitalOcean ($18/mo, 2 vCPU), Hetzner (~$7/mo), or any cheap VPS with Docker and 2+ cores
+- **Cloud VPS** — Hetzner CX22 (~€3.79/mo for 2 vCPU/4GB — best value), DigitalOcean ($18/mo for 2 vCPU/1GB), or any cheap VPS with Docker and 2+ cores
 - **Home PC / Mac** — if you've got something always on, just `docker compose up -d`
 - **Raspberry Pi 4/5** — more than enough power, perfect for a dedicated bark sentinel
 - **Old laptop in a cupboard** — finally a use for that 2015 MacBook Air
