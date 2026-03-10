@@ -24,13 +24,15 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - 🎙️ **AI Bark Classification** — YAMNet distinguishes barks, howls, yips, whimpers, and growls. Science, Karen.
 - ⏱️ **Duration Tracking** — Exact start time, end time, and duration of every episode. Down to the second. Shows actual bark time vs total episode span, so a "6 minute episode" that was really 15 seconds of barking doesn't look worse than it is.
 - 📊 **Confidence Scoring** — How confident the AI is that it was actually a bark and not, say, 60 people gasping in horror.
-- 🚫 **False Positive Filtering** — Multi-layered: suppresses when TV, speech, music, or household impacts (bangs, clatters, doors) score higher than bark. Plus uses a sliding window requiring 2+ bark frames within 5 frames to confirm an episode — single bangs get discarded.
+- 🚫 **False Positive Filtering** — Multi-layered: suppresses when TV, speech, music, instruments (brass, woodwind — trumpet practice won't frame Eddie), or household impacts (bangs, clatters, doors) score higher than bark. Plus uses a sliding window requiring 2+ bark frames within 5 frames to confirm an episode — single bangs get discarded.
 - 🎯 **Always-On Monitoring** — Continuous RTSP audio stream during configurable hours (default 7:30 AM – 8:30 PM). Zero detection latency — barks are caught within 1 second. Auto-reconnects on stream failure with exponential backoff.
 - 🔀 **Cross-Referencing** — YAMNet detections are cross-referenced with Nest Sound events. Each bark is tagged with its source: "YAMNet" (AI only), "Nest" (Google only), or "Both" (both agree). Build ground truth by replying to validate or dismiss.
 - 🎬 **Audio & Video Clips** — Records audio and video during bark episodes only (not continuously). Reply `clip`, `video`, or `snapshot` to any Telegram notification to get the files sent straight to you.
 - 📱 **Telegram Notifications** — Real-time alerts when barking is detected. Reply `not bark` to flag false positives, `was bark` to confirm Nest-only events, or reply naturally to log context. Any unrecognised reply is saved as a comment on the Notion page.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
-- 📝 **Daily & On-Demand Summaries** — Nightly report at 8:30pm, or message the bot anytime: `summary`, `summary yesterday`, `summary last week`, `summary this week`, or `summary March 5`. Evidence on demand.
+- 📝 **Hierarchical Summaries** — Nightly report at 8:30pm with confirmed/not-bark/unconfirmed breakdown. On-demand: `summary week` gives daily breakdown, `summary month` gives weekly breakdown, `summary 2026` gives monthly breakdown. Stats (bark count, bark time, longest episode) are calculated from confirmed barks only.
+- 🔧 **Nightly Health Check** — After the daily summary, reports processing rate (% real-time), disk usage, and clip directory stats. Know immediately if the system is struggling.
+- 🗑️ **Auto Clip Cleanup** — Videos auto-deleted after 7 days, audio and snapshots after 21 days. No manual housekeeping required.
 - 🔗 **Nest Cam Links** — Jump straight to the camera footage for any event.
 - 📷 **Multi-Camera Support** — Monitor multiple Nest Cams with friendly names. Each bark is tagged to the camera that heard it.
 
@@ -55,9 +57,9 @@ Nest Cam → Google Pub/Sub → Snapshots + Cross-Referencing
 
 ## Deployment
 
-We run ours on a $6/month DigitalOcean droplet for convenience. A small price to pay for vindication. But since YAMNet runs happily on CPU and the whole thing idles 99% of the time, you've got plenty of options:
+We run ours on an $18/month DigitalOcean droplet (2 vCPU) for convenience. YAMNet needs ~1 second per inference frame, so **2 vCPUs is the minimum for real-time processing** — a 1 vCPU box will fall behind and miss detections. A small price to pay for vindication. You've got plenty of options:
 
-- **Cloud VPS** — DigitalOcean ($6/mo), Hetzner ($3.80/mo), or any cheap VPS with Docker
+- **Cloud VPS** — DigitalOcean ($18/mo, 2 vCPU), Hetzner (~$7/mo), or any cheap VPS with Docker and 2+ cores
 - **Home PC / Mac** — if you've got something always on, just `docker compose up -d`
 - **Raspberry Pi 4/5** — more than enough power, perfect for a dedicated bark sentinel
 - **Old laptop in a cupboard** — finally a use for that 2015 MacBook Air
@@ -90,24 +92,22 @@ bash scripts/deploy.sh
 
 **Reply to any bark notification naturally:**
 - `not bark` / `false positive` / `false alarm` — marks as Not Bark in Notion
-- `was bark` / `confirmed` / `real bark` — confirms as Bark (validates Nest-only detections)
+- `was bark` / `confirmed` / `real bark` / `genuine` — confirms as Bark (validates Nest-only detections)
 - `clip` / `audio` / `sound` — sends the audio clip for that episode
 - `video` / `footage` — sends the video clip for that episode
 - `snapshot` / `photo` — sends the snapshot image
-- `home` — you were home
+- `home` / `away` / `not home` — logs whether you were home (negation handled properly)
 - `I was home and intervened, it was the mailman` — all parsed automatically
-- `doorbell` / `stranger` / `cat` / `boredom` — auto-detected reasons
+- `delivery` / `stranger` / `cat` / `boredom` / `anxiety` / `doorbell` — auto-detected reasons
 - Any other reply — saved as a comment on the Notion page
 
 **On-demand summaries (send as a new message, not a reply):**
-- `summary` — today's summary
-- `summary yesterday` — yesterday's summary
-- `summary this week` — Monday to today
-- `summary last week` — previous Mon–Sun
-- `summary this month` / `summary last month` — monthly summary
-- `summary March` or `summary March 2026` — specific month
-- `summary 2026` — full year
-- `summary 2026-03-05` or `summary March 5` — specific date
+- `summary` — today's episodes (flat list)
+- `summary yesterday` / `summary March 5` — specific date (flat list)
+- `summary week` / `summary this week` / `summary last week` — daily breakdown
+- `summary month` / `summary this month` / `summary March` — weekly breakdown
+- `summary year` / `summary this year` / `summary 2026` — monthly breakdown
+- `summary last month` / `summary last year` — previous period
 
 ## The Verdict
 
