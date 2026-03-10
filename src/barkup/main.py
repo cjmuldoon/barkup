@@ -67,6 +67,7 @@ class BarkupOrchestrator:
         self._tz = ZoneInfo(settings.timezone)
         self._shutdown = threading.Event()
         self._monitor_active = threading.Event()
+        self._start_time = time.time()
 
         # File path cache: page_id -> {clip_path, video_path, snapshot_path}
         self._file_cache: dict[str, dict[str, str]] = {}
@@ -110,6 +111,51 @@ class BarkupOrchestrator:
         episodes = self._notion.get_today_episodes()
         self._telegram.send_nightly_summary(episodes)
         logger.info("Nightly summary sent: %d episodes", len(episodes))
+
+        # Send health check
+        try:
+            self._telegram.send_health_check(self._gather_health())
+        except Exception:
+            logger.exception("Failed to send health check")
+
+    def _gather_health(self) -> dict:
+        """Collect system health metrics."""
+        import shutil
+
+        # Frame processing rate
+        frames = self._classifier._frame_count
+        uptime_seconds = time.time() - self._start_time if hasattr(self, '_start_time') else 0
+        uptime_hours = uptime_seconds / 3600
+        # Each frame is ~0.975s of audio; expected = uptime / 0.975
+        expected = uptime_seconds / 0.975 if uptime_seconds > 0 else 1
+        processing_pct = (frames / expected) * 100 if expected > 0 else 0
+
+        # Disk usage
+        disk = shutil.disk_usage("/")
+        disk_used_mb = (disk.total - disk.free) / (1024 * 1024)
+        disk_total_mb = disk.total / (1024 * 1024)
+
+        # Clip directory stats
+        clip_dir = Path(settings.clip_storage_path)
+        clip_count = 0
+        clip_size = 0
+        if clip_dir.exists():
+            for f in clip_dir.iterdir():
+                if f.is_file():
+                    clip_count += 1
+                    clip_size += f.stat().st_size
+        clip_size_mb = clip_size / (1024 * 1024)
+
+        return {
+            "uptime_hours": uptime_hours,
+            "frames_processed": frames,
+            "frames_expected": int(expected),
+            "processing_pct": min(processing_pct, 100),
+            "disk_used_mb": disk_used_mb,
+            "disk_total_mb": disk_total_mb,
+            "clip_count": clip_count,
+            "clip_size_mb": clip_size_mb,
+        }
 
     # --- Nest event handling (snapshots + cross-referencing) ---
 

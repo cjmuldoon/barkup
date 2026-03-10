@@ -331,6 +331,31 @@ class TelegramBot:
             parse_mode="Markdown",
         )
 
+    def send_health_check(self, health: dict):
+        """Send a system health check message.
+
+        health dict keys: uptime_hours, frames_processed, frames_expected,
+                         processing_pct, disk_used_mb, disk_total_mb, clip_count, clip_size_mb
+        """
+        processing_pct = health.get("processing_pct", 0)
+        status = "✅" if processing_pct >= 95 else "⚠️" if processing_pct >= 80 else "🔴"
+
+        text = f"🔧 *System Health Check*\n\n"
+        text += f"{status} Processing: {processing_pct:.0f}% real-time"
+        text += f" ({health.get('frames_processed', 0)} frames in {health.get('uptime_hours', 0):.1f}h)\n"
+        text += f"💾 Disk: {health.get('disk_used_mb', 0):.0f}MB / {health.get('disk_total_mb', 0):.0f}MB"
+        disk_pct = (health.get('disk_used_mb', 0) / health.get('disk_total_mb', 1)) * 100
+        disk_icon = "✅" if disk_pct < 80 else "⚠️" if disk_pct < 90 else "🔴"
+        text += f" ({disk_pct:.0f}%) {disk_icon}\n"
+        text += f"📁 Clips: {health.get('clip_count', 0)} files, {health.get('clip_size_mb', 0):.0f}MB\n"
+
+        self._send(
+            "sendMessage",
+            chat_id=self._chat_id,
+            text=text,
+            parse_mode="Markdown",
+        )
+
     def _parse_reply(self, text: str) -> dict:
         """Parse user reply into intervention fields.
 
@@ -426,11 +451,13 @@ class TelegramBot:
 
         return result
 
-    def _parse_summary_range(self, text: str) -> tuple[str, str, str] | None:
-        """Parse a summary command into (start_date, end_date, label).
+    def _parse_summary_range(self, text: str) -> tuple[str, str, str, str] | None:
+        """Parse a summary command into (start_date, end_date, label, granularity).
 
         Returns None if text is not a summary command.
         Dates are YYYY-MM-DD strings. end_date is exclusive (day after last day).
+        Granularity: "day" (flat list), "weekly" (daily breakdown),
+                     "monthly" (weekly breakdown), "yearly" (monthly breakdown).
         """
         tz = ZoneInfo(settings.timezone)
         now = datetime.now(tz)
@@ -444,35 +471,33 @@ class TelegramBot:
         if not arg or arg == "today":
             start = now.strftime("%Y-%m-%d")
             end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-            return start, end, now.strftime("%A, %B %d")
+            return start, end, now.strftime("%A, %B %d"), "day"
 
         if arg == "yesterday":
             yesterday = now - timedelta(days=1)
             start = yesterday.strftime("%Y-%m-%d")
             end = now.strftime("%Y-%m-%d")
-            return start, end, yesterday.strftime("%A, %B %d")
+            return start, end, yesterday.strftime("%A, %B %d"), "day"
 
         if arg == "last week":
-            # Previous Mon–Sun
             this_monday = now - timedelta(days=now.weekday())
             last_monday = this_monday - timedelta(days=7)
             last_sunday = this_monday - timedelta(days=1)
             start = last_monday.strftime("%Y-%m-%d")
             end = this_monday.strftime("%Y-%m-%d")
-            return start, end, f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d')}"
+            return start, end, f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d')}", "weekly"
 
-        if arg == "this week":
-            # Monday to today (inclusive)
+        if arg == "this week" or arg == "week":
             monday = now - timedelta(days=now.weekday())
             start = monday.strftime("%Y-%m-%d")
             end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-            return start, end, f"{monday.strftime('%b %d')} – {now.strftime('%b %d')}"
+            return start, end, f"{monday.strftime('%b %d')} – {now.strftime('%b %d')}", "weekly"
 
-        if arg == "this month":
+        if arg == "this month" or arg == "month":
             first = now.replace(day=1)
             start = first.strftime("%Y-%m-%d")
             end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-            return start, end, now.strftime("%B %Y")
+            return start, end, now.strftime("%B %Y"), "monthly"
 
         if arg == "last month":
             first_this_month = now.replace(day=1)
@@ -480,14 +505,24 @@ class TelegramBot:
             first_last_month = last_month_end.replace(day=1)
             start = first_last_month.strftime("%Y-%m-%d")
             end = first_this_month.strftime("%Y-%m-%d")
-            return start, end, first_last_month.strftime("%B %Y")
+            return start, end, first_last_month.strftime("%B %Y"), "monthly"
+
+        if arg == "this year" or arg == "year":
+            start = f"{now.year}-01-01"
+            end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+            return start, end, str(now.year), "yearly"
+
+        if arg == "last year":
+            start = f"{now.year - 1}-01-01"
+            end = f"{now.year}-01-01"
+            return start, end, str(now.year - 1), "yearly"
 
         # Try a year (e.g. "2026")
         if arg.isdigit() and len(arg) == 4:
             year = int(arg)
             start = f"{year}-01-01"
             end = f"{year + 1}-01-01"
-            return start, end, str(year)
+            return start, end, str(year), "yearly"
 
         # Try a month name (e.g. "march", "march 2026", "feb")
         for month_fmt in ("%B %Y", "%b %Y", "%B", "%b"):
@@ -498,7 +533,7 @@ class TelegramBot:
                 last_day = calendar.monthrange(parsed.year, parsed.month)[1]
                 start = parsed.strftime("%Y-%m-%d")
                 end = (parsed.replace(day=last_day) + timedelta(days=1)).strftime("%Y-%m-%d")
-                return start, end, parsed.strftime("%B %Y")
+                return start, end, parsed.strftime("%B %Y"), "monthly"
             except ValueError:
                 continue
 
@@ -510,20 +545,99 @@ class TelegramBot:
                     parsed = parsed.replace(year=now.year)
                 start = parsed.strftime("%Y-%m-%d")
                 end = (parsed + timedelta(days=1)).strftime("%Y-%m-%d")
-                return start, end, parsed.strftime("%A, %B %d")
+                return start, end, parsed.strftime("%A, %B %d"), "day"
             except ValueError:
                 continue
 
         return None
 
-    def send_range_summary(self, episodes: list[dict], label: str, is_range: bool = False):
-        """Send a summary for a date range."""
+    def _group_episodes_by(self, episodes: list[dict], key_fn, tz) -> dict:
+        """Group episodes into buckets using key_fn(episode, tz) -> key."""
+        groups = {}
+        for ep in episodes:
+            k = key_fn(ep, tz)
+            groups.setdefault(k, []).append(ep)
+        return groups
+
+    def _format_sub_period_line(self, label: str, episodes: list[dict]) -> str:
+        """Format a single sub-period line with stats from confirmed barks only."""
+        confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
+        bark_count = len(confirmed)
+        bark_time = sum(e["bark_time_seconds"] for e in confirmed)
+        time_str = self._format_duration(bark_time) if bark_time else "0s"
+        parts = [f"{bark_count} bark{'s' if bark_count != 1 else ''}"]
+        if bark_time:
+            parts.append(time_str)
+        if not_barks:
+            parts.append(f"{len(not_barks)} false")
+        if unconfirmed:
+            parts.append(f"{len(unconfirmed)} unconf")
+        return f"  {label}: {' | '.join(parts)}\n"
+
+    def _build_grouped_summary(self, episodes: list[dict], label: str,
+                                group_key_fn, group_label_fn, tz) -> str:
+        """Build a summary with sub-period breakdown."""
+        confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
+        text = self._build_summary_header(label, episodes, confirmed, not_barks, unconfirmed, tz, is_range=True)
+
+        if episodes:
+            groups = self._group_episodes_by(episodes, group_key_fn, tz)
+            for key in sorted(groups.keys()):
+                group_label = group_label_fn(key, tz)
+                text += self._format_sub_period_line(group_label, groups[key])
+
+        return text
+
+    def send_range_summary(self, episodes: list[dict], label: str,
+                           is_range: bool = False, granularity: str = "day"):
+        """Send a summary for a date range.
+
+        granularity: "day" (flat list), "weekly" (daily breakdown),
+                     "monthly" (weekly breakdown), "yearly" (monthly breakdown)
+        """
         tz = ZoneInfo(settings.timezone)
 
-        confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
-        text = self._build_summary_header(label, episodes, confirmed, not_barks, unconfirmed, tz, is_range)
-        if episodes:
-            text += self._build_episode_list(episodes, tz, is_range)
+        if granularity == "weekly":
+            # Group by day
+            text = self._build_grouped_summary(
+                episodes, label,
+                group_key_fn=lambda ep, tz: ep["start_time"].astimezone(tz).strftime("%Y-%m-%d"),
+                group_label_fn=lambda k, tz: datetime.strptime(k, "%Y-%m-%d").strftime("%a %b %d"),
+                tz=tz,
+            )
+        elif granularity == "monthly":
+            # Group by week number
+            def week_key(ep, tz):
+                dt = ep["start_time"].astimezone(tz)
+                # Start of week (Monday)
+                monday = dt - timedelta(days=dt.weekday())
+                return monday.strftime("%Y-%m-%d")
+
+            def week_label(k, tz):
+                monday = datetime.strptime(k, "%Y-%m-%d")
+                sunday = monday + timedelta(days=6)
+                return f"{monday.strftime('%b %d')}–{sunday.strftime('%d')}"
+
+            text = self._build_grouped_summary(
+                episodes, label,
+                group_key_fn=week_key,
+                group_label_fn=week_label,
+                tz=tz,
+            )
+        elif granularity == "yearly":
+            # Group by month
+            text = self._build_grouped_summary(
+                episodes, label,
+                group_key_fn=lambda ep, tz: ep["start_time"].astimezone(tz).strftime("%Y-%m"),
+                group_label_fn=lambda k, tz: datetime.strptime(k, "%Y-%m").strftime("%B"),
+                tz=tz,
+            )
+        else:
+            # Flat episode list (daily or small ranges)
+            confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
+            text = self._build_summary_header(label, episodes, confirmed, not_barks, unconfirmed, tz, is_range)
+            if episodes:
+                text += self._build_episode_list(episodes, tz, is_range)
 
         self._send(
             "sendMessage",
@@ -548,12 +662,11 @@ class TelegramBot:
         reply_msg_id = reply_to.get("message_id")
 
         if not reply_msg_id and self._notion:
-            summary_range = self._parse_summary_range(text)
-            if summary_range:
-                start_date, end_date, label = summary_range
-                is_range = start_date != (datetime.now(ZoneInfo(settings.timezone))).strftime("%Y-%m-%d") or "–" in label
+            summary_result = self._parse_summary_range(text)
+            if summary_result:
+                start_date, end_date, label, granularity = summary_result
                 episodes = self._notion.get_episodes_for_range(start_date, end_date)
-                self.send_range_summary(episodes, label, is_range="–" in label)
+                self.send_range_summary(episodes, label, is_range=granularity != "day", granularity=granularity)
                 return
 
         if reply_msg_id and self._notion:
