@@ -39,6 +39,14 @@ SUPPRESS_CLASSES = {
     # Music & media
     137,  # Music
     138,  # Musical instrument
+    180,  # Brass instrument
+    181,  # French horn
+    182,  # Trumpet
+    183,  # Trombone
+    190,  # Wind instrument / woodwind
+    191,  # Flute
+    192,  # Saxophone
+    193,  # Clarinet
     289,  # Television
     290,  # Radio
     291,  # Video game music
@@ -70,6 +78,8 @@ CLASS_NAMES = {
     11: "Choir", 67: "Domestic animal", 68: "Dog (generic)",
     69: "Dog", 70: "Bark", 71: "Yip", 72: "Howl",
     74: "Growling", 75: "Whimper", 137: "Music", 138: "Instrument",
+    180: "Brass", 181: "French horn", 182: "Trumpet", 183: "Trombone",
+    190: "Woodwind", 191: "Flute", 192: "Saxophone", 193: "Clarinet",
     289: "Television", 290: "Radio", 291: "Game music",
     363: "Blender", 406: "Mech fan", 482: "Whir",
     348: "Door", 352: "Slam", 353: "Knock", 356: "Cupboard",
