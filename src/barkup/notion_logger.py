@@ -298,21 +298,32 @@ class NotionLogger:
         """Query bark episodes for a date range.
 
         Args:
-            start_date: ISO date string (YYYY-MM-DD) for range start.
-            end_date: Optional ISO date string for range end (exclusive next day).
+            start_date: ISO date string (YYYY-MM-DD) for range start (local time).
+            end_date: Optional ISO date string for range end (exclusive, local time).
                       If None, queries from start_date onwards.
+
+        Dates are converted to UTC ISO-8601 timestamps so that Notion's
+        date filter works correctly regardless of timezone offset.
         """
+        tz = ZoneInfo(settings.timezone)
+
+        # Convert local date to UTC datetime for accurate Notion filtering
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=tz)
+        start_utc = start_dt.isoformat()
+
         if end_date:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=tz)
+            end_utc = end_dt.isoformat()
             filter = {
                 "and": [
-                    {"property": "Date/Time", "date": {"on_or_after": start_date}},
-                    {"property": "Date/Time", "date": {"before": end_date}},
+                    {"property": "Date/Time", "date": {"on_or_after": start_utc}},
+                    {"property": "Date/Time", "date": {"before": end_utc}},
                 ]
             }
         else:
             filter = {
                 "property": "Date/Time",
-                "date": {"on_or_after": start_date},
+                "date": {"on_or_after": start_utc},
             }
 
         result = self._query_database(
