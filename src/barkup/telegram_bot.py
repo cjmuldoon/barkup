@@ -396,7 +396,8 @@ class TelegramBot:
 
         # Check for "was bark" / "confirmed" / "genuine" / "real" — validates events
         was_bark_phrases = ["was bark", "was a bark", "confirmed", "actually bark",
-                           "real bark", "yes bark", "was barking", "genuine", "real"]
+                           "real bark", "yes bark", "was barking", "genuine", "real",
+                           "barked", "dog barked", "he barked", "she barked"]
         if any(phrase in text_lower for phrase in was_bark_phrases):
             result["was_bark"] = True
             # Don't return early — continue parsing for home/away/reason
@@ -433,7 +434,6 @@ class TelegramBot:
             "auspost": "Delivery", "amazon": "Delivery",
             "animal": "Animal", "cat": "Animal", "bird": "Animal",
             "squirrel": "Animal", "possum": "Animal", "shadow": "Animal",
-            "dog": "Animal",
             "bored": "Boredom", "boredom": "Boredom", "nothing": "Boredom",
             "anxious": "Anxiety", "anxiety": "Anxiety", "scared": "Anxiety",
             "separation": "Anxiety",
@@ -656,6 +656,8 @@ class TelegramBot:
             return
 
         text = message.get("text", "")
+        logger.info("Telegram message from %s: %r (reply_to: %s)", user_id, text,
+                     message.get("reply_to_message", {}).get("message_id"))
 
         # Check for summary command (not a reply)
         reply_to = message.get("reply_to_message", {})
