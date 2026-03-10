@@ -19,13 +19,14 @@ TELEGRAM_API = "https://api.telegram.org/bot{token}"
 
 class TelegramBot:
     def __init__(self, on_intervention: callable = None, notion_logger=None,
-                 on_file_request: callable = None):
+                 on_file_request: callable = None, on_health_request: callable = None):
         """
         Args:
             on_intervention: Callback(page_id, fields) for intervention updates.
             notion_logger: NotionLogger instance for looking up pages by message ID.
             on_file_request: Callback(page_id, file_type) -> file_path or None.
                            file_type is "clip", "video", or "snapshot".
+            on_health_request: Callback() -> dict with health metrics.
         """
         self._token = settings.telegram_bot_token
         self._chat_id = settings.telegram_chat_id
@@ -33,6 +34,7 @@ class TelegramBot:
         self._client = httpx.Client(timeout=30)
         self._on_intervention = on_intervention
         self._on_file_request = on_file_request
+        self._on_health_request = on_health_request
         self._notion = notion_logger
         # Allowed user IDs (owner + anyone they add)
         allowed = settings.telegram_allowed_users
@@ -80,6 +82,41 @@ class TelegramBot:
 
         if nest_link:
             text += f"\n[View in Nest]({nest_link})"
+
+        result = self._send(
+            "sendMessage",
+            chat_id=self._chat_id,
+            text=text,
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+
+        if result:
+            return result.get("message_id")
+        return None
+
+    def send_nest_only_notification(self, timestamp: datetime, camera_name: str | None = None,
+                                       nest_link: str | None = None) -> int | None:
+        """Send a notification for a Nest-only sound event (outside monitoring hours)."""
+        tz = ZoneInfo(settings.timezone)
+        local_start = timestamp.astimezone(tz) if timestamp.tzinfo else timestamp.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+        local_time = local_start.strftime("%I:%M:%S %p")
+
+        cam_line = f"📷 Camera: {camera_name}\n" if camera_name else ""
+        text = (
+            f"🔔 *Nest Sound Event*\n\n"
+            f"{cam_line}"
+            f"⏰ Time: {local_time}\n"
+            f"🔍 Source: Nest only (outside monitoring hours)\n"
+        )
+
+        if nest_link:
+            text += f"\n[View in Nest]({nest_link})"
+
+        text += (
+            f"\n\n_Reply to update:_\n"
+            f"e.g. `was bark`, `not bark`, or any comment"
+        )
 
         result = self._send(
             "sendMessage",
@@ -659,9 +696,22 @@ class TelegramBot:
         logger.info("Telegram message from %s: %r (reply_to: %s)", user_id, text,
                      message.get("reply_to_message", {}).get("message_id"))
 
-        # Check for summary command (not a reply)
+        # Check for standalone commands (not replies)
         reply_to = message.get("reply_to_message", {})
         reply_msg_id = reply_to.get("message_id")
+
+        if not reply_msg_id:
+            text_lower = text.lower().strip()
+
+            # Health check command
+            if text_lower in ("health", "health check", "status"):
+                if self._on_health_request:
+                    health = self._on_health_request()
+                    self.send_health_check(health)
+                else:
+                    self._send("sendMessage", chat_id=self._chat_id,
+                               text="❌ Health check not available")
+                return
 
         if not reply_msg_id and self._notion:
             summary_result = self._parse_summary_range(text)

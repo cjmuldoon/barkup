@@ -63,6 +63,7 @@ class BarkupOrchestrator:
             on_intervention=self._handle_intervention,
             notion_logger=self._notion,
             on_file_request=self._handle_file_request,
+            on_health_request=self._gather_health,
         )
         self._tz = ZoneInfo(settings.timezone)
         self._shutdown = threading.Event()
@@ -212,7 +213,7 @@ class BarkupOrchestrator:
                 if snapshot_path:
                     self._cache_files(page_id, snapshot_path=snapshot_path)
                 if self._telegram.enabled:
-                    msg_id = self._telegram.send_preliminary_notification(
+                    msg_id = self._telegram.send_nest_only_notification(
                         timestamp=timestamp, camera_name=camera_name, nest_link=nest_link,
                     )
                     if msg_id and page_id:
