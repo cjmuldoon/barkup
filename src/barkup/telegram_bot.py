@@ -245,52 +245,84 @@ class TelegramBot:
             return result.get("message_id")
         return None
 
+    def _categorise_episodes(self, episodes: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+        """Split episodes into (confirmed_barks, not_barks, unconfirmed)."""
+        confirmed = []
+        not_barks = []
+        unconfirmed = []
+        for ep in episodes:
+            bt = ep.get("bark_type", "").lower()
+            if bt == "unconfirmed":
+                unconfirmed.append(ep)
+            elif bt in ("not bark", "not a bark", "false positive"):
+                not_barks.append(ep)
+            else:
+                confirmed.append(ep)
+        return confirmed, not_barks, unconfirmed
+
+    def _format_duration(self, seconds: float) -> str:
+        if seconds >= 60:
+            return f"{seconds / 60:.0f}m {seconds % 60:.0f}s"
+        return f"{seconds:.0f}s"
+
+    def _build_summary_header(self, label: str, episodes: list[dict], confirmed: list[dict],
+                               not_barks: list[dict], unconfirmed: list[dict],
+                               tz, is_range: bool = False) -> str:
+        """Build the stats header for a summary message."""
+        if not episodes:
+            return (
+                f"📋 *Bark Summary — {label}*\n\n"
+                f"✅ No episodes detected! Good boy! 🐕"
+            )
+
+        # Stats from confirmed barks only
+        total_bark_time = sum(e["bark_time_seconds"] for e in confirmed)
+        total_barks = sum(e["bark_count"] for e in confirmed)
+
+        text = f"📋 *Bark Summary — {label}*\n\n"
+        text += f"🐕 Confirmed barks: {len(confirmed)}"
+        if not_barks:
+            text += f"  |  ❌ Not barks: {len(not_barks)}"
+        if unconfirmed:
+            text += f"  |  ❓ Unconfirmed: {len(unconfirmed)}"
+        text += "\n"
+
+        if confirmed:
+            text += f"🔢 Total bark count: {total_barks}\n"
+            text += f"⏱ Total bark time: {self._format_duration(total_bark_time)}\n"
+
+            longest = max(confirmed, key=lambda e: e["duration_seconds"])
+            longest_time = longest["start_time"]
+            fmt = "%I:%M %p %a" if is_range else "%I:%M %p"
+            longest_time_str = longest_time.astimezone(tz).strftime(fmt) if longest_time.tzinfo else longest_time.strftime("%I:%M %p")
+            text += f"🔝 Longest bark: {self._format_duration(longest['duration_seconds'])} at {longest_time_str}\n"
+
+        text += "\n"
+        return text
+
+    def _build_episode_list(self, episodes: list[dict], tz, is_range: bool = False) -> str:
+        """Build the numbered episode list."""
+        text = ""
+        for i, ep in enumerate(episodes, 1):
+            ep_time = ep["start_time"]
+            fmt = "%I:%M %p %a" if is_range else "%I:%M %p"
+            time_str = ep_time.astimezone(tz).strftime(fmt) if ep_time.tzinfo else ep_time.strftime("%I:%M %p")
+            ep_dur = self._format_duration(ep["duration_seconds"]) if ep["duration_seconds"] else ""
+            bark_info = f"{ep['bark_count']} barks" if ep["bark_count"] else ep_dur
+            cam = f" [{ep['camera']}]" if ep.get("camera") else ""
+            text += f"{i}. {time_str} — {ep['bark_type']}{cam} ({bark_info})\n"
+        return text
+
     def send_nightly_summary(self, episodes: list[dict], date: datetime = None):
         """Send the nightly summary at 8pm. Episodes are dicts from Notion query."""
         tz = ZoneInfo(settings.timezone)
         date = date or datetime.now(tz)
         date_str = date.strftime("%A, %B %d")
 
-        if not episodes:
-            text = (
-                f"📋 *Daily Bark Summary - {date_str}*\n\n"
-                f"✅ No barking episodes detected today! Good boy! 🐕"
-            )
-        else:
-            total_bark_time = sum(e["bark_time_seconds"] for e in episodes)
-            total_barks = sum(e["bark_count"] for e in episodes)
-            if total_bark_time >= 60:
-                total_str = f"{total_bark_time / 60:.0f}m {total_bark_time % 60:.0f}s"
-            else:
-                total_str = f"{total_bark_time:.0f}s"
-
-            longest = max(episodes, key=lambda e: e["duration_seconds"])
-            longest_dur = longest["duration_seconds"]
-            if longest_dur >= 60:
-                longest_str = f"{longest_dur / 60:.0f}m {longest_dur % 60:.0f}s"
-            else:
-                longest_str = f"{longest_dur:.0f}s"
-
-            longest_time = longest["start_time"]
-            longest_time_str = longest_time.astimezone(tz).strftime("%I:%M %p") if longest_time.tzinfo else longest_time.strftime("%I:%M %p")
-
-            text = (
-                f"📋 *Daily Bark Summary - {date_str}*\n\n"
-                f"📊 Total episodes: {len(episodes)}\n"
-                f"🐕 Total barks: {total_barks}\n"
-                f"⏱ Total bark time: {total_str}\n"
-                f"🔝 Longest episode: {longest_str} at {longest_time_str}\n\n"
-            )
-
-            # List each episode
-            for i, ep in enumerate(episodes, 1):
-                ep_time = ep["start_time"].astimezone(tz).strftime("%I:%M %p") if ep["start_time"].tzinfo else ep["start_time"].strftime("%I:%M %p")
-                ep_dur = f"{ep['duration_seconds']:.0f}s"
-                if ep["duration_seconds"] >= 60:
-                    ep_dur = f"{ep['duration_seconds'] / 60:.0f}m"
-                bark_info = f"{ep['bark_count']} barks" if ep["bark_count"] else ep_dur
-                cam = f" [{ep['camera']}]" if ep.get("camera") else ""
-                text += f"{i}. {ep_time} - {ep['bark_type']}{cam} ({bark_info})\n"
+        confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
+        text = self._build_summary_header(date_str, episodes, confirmed, not_barks, unconfirmed, tz)
+        if episodes:
+            text += self._build_episode_list(episodes, tz)
 
         self._send(
             "sendMessage",
@@ -488,51 +520,10 @@ class TelegramBot:
         """Send a summary for a date range."""
         tz = ZoneInfo(settings.timezone)
 
-        if not episodes:
-            text = (
-                f"📋 *Bark Summary — {label}*\n\n"
-                f"✅ No barking episodes detected! Good boy! 🐕"
-            )
-        else:
-            total_bark_time = sum(e["bark_time_seconds"] for e in episodes)
-            total_barks = sum(e["bark_count"] for e in episodes)
-            if total_bark_time >= 60:
-                total_str = f"{total_bark_time / 60:.0f}m {total_bark_time % 60:.0f}s"
-            else:
-                total_str = f"{total_bark_time:.0f}s"
-
-            longest = max(episodes, key=lambda e: e["duration_seconds"])
-            longest_dur = longest["duration_seconds"]
-            if longest_dur >= 60:
-                longest_str = f"{longest_dur / 60:.0f}m {longest_dur % 60:.0f}s"
-            else:
-                longest_str = f"{longest_dur:.0f}s"
-
-            longest_time = longest["start_time"]
-            longest_time_str = longest_time.astimezone(tz).strftime("%I:%M %p %a") if is_range else longest_time.astimezone(tz).strftime("%I:%M %p")
-            if not longest_time.tzinfo:
-                longest_time_str = longest_time.strftime("%I:%M %p")
-
-            text = (
-                f"📋 *Bark Summary — {label}*\n\n"
-                f"📊 Total episodes: {len(episodes)}\n"
-                f"🐕 Total barks: {total_barks}\n"
-                f"⏱ Total bark time: {total_str}\n"
-                f"🔝 Longest episode: {longest_str} at {longest_time_str}\n\n"
-            )
-
-            for i, ep in enumerate(episodes, 1):
-                ep_time = ep["start_time"]
-                if ep_time.tzinfo:
-                    time_str = ep_time.astimezone(tz).strftime("%I:%M %p %a") if is_range else ep_time.astimezone(tz).strftime("%I:%M %p")
-                else:
-                    time_str = ep_time.strftime("%I:%M %p")
-                ep_dur = f"{ep['duration_seconds']:.0f}s"
-                if ep["duration_seconds"] >= 60:
-                    ep_dur = f"{ep['duration_seconds'] / 60:.0f}m"
-                bark_info = f"{ep['bark_count']} barks" if ep["bark_count"] else ep_dur
-                cam = f" [{ep['camera']}]" if ep.get("camera") else ""
-                text += f"{i}. {time_str} — {ep['bark_type']}{cam} ({bark_info})\n"
+        confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
+        text = self._build_summary_header(label, episodes, confirmed, not_barks, unconfirmed, tz, is_range)
+        if episodes:
+            text += self._build_episode_list(episodes, tz, is_range)
 
         self._send(
             "sendMessage",
