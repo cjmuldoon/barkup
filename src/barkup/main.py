@@ -24,6 +24,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def cleanup_old_clips(clip_dir: str = "clips"):
+    """Delete old clip files: videos after 7 days, audio/snapshots after 21 days."""
+    clip_path = Path(clip_dir)
+    if not clip_path.exists():
+        return
+
+    now = time.time()
+    video_max_age = 7 * 86400
+    audio_max_age = 21 * 86400
+
+    deleted = 0
+    for f in clip_path.iterdir():
+        if not f.is_file():
+            continue
+        age = now - f.stat().st_mtime
+        if f.suffix == ".mp4" and age > video_max_age:
+            f.unlink()
+            deleted += 1
+        elif f.suffix in (".wav", ".aac", ".jpg") and age > audio_max_age:
+            f.unlink()
+            deleted += 1
+
+    if deleted:
+        logger.info("Clip cleanup: deleted %d old files", deleted)
+
+
 class BarkupOrchestrator:
     def __init__(self):
         from barkup.bark_classifier import BarkClassifier
@@ -428,6 +454,9 @@ class BarkupOrchestrator:
         """Start classification loops for all configured cameras."""
         if self._monitor_active.is_set():
             return
+
+        # Daily cleanup of old clip files
+        cleanup_old_clips(settings.clip_storage_path)
 
         self._monitor_active.set()
         camera_ids = settings.get_camera_ids()
