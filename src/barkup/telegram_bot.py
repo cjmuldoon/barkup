@@ -722,9 +722,15 @@ class TelegramBot:
 
         if emoji == "👍":
             self._notion.update_bark_type(page_id, "Bark")
+            self._send("sendMessage", chat_id=self._chat_id,
+                       text="✅ Confirmed as Bark",
+                       reply_to_message_id=message_id)
             logger.info("👍 reaction: confirmed bark for page %s", page_id)
         elif emoji == "👎":
             self._notion.update_bark_type(page_id, "Not Bark")
+            self._send("sendMessage", chat_id=self._chat_id,
+                       text="✅ Marked as Not Bark",
+                       reply_to_message_id=message_id)
             logger.info("👎 reaction: marked not bark for page %s", page_id)
 
     def _process_update(self, update: dict):
