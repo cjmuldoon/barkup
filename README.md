@@ -25,14 +25,14 @@ Barkup monitors a Nest Cam 24/7, uses Google's YAMNet machine learning model to 
 - ⏱️ **Duration Tracking** — Exact start time, end time, and duration of every episode. Down to the second. Shows actual bark time vs total episode span, so a "6 minute episode" that was really 15 seconds of barking doesn't look worse than it is.
 - 📊 **Confidence Scoring** — How confident the AI is that it was actually a bark and not, say, 60 people gasping in horror.
 - 🚫 **False Positive Filtering** — Multi-layered: suppresses when TV, speech, music, instruments (brass, woodwind — trumpet practice won't frame Eddie), or household impacts (bangs, clatters, doors) score higher than bark. Plus uses a sliding window requiring 2+ bark frames within 5 frames to confirm an episode — single bangs get discarded.
-- 🎯 **Always-On Monitoring** — Continuous RTSP audio stream during configurable hours (default 7:30 AM – 8:30 PM). Zero detection latency — barks are caught within 1 second. Auto-reconnects on stream failure with exponential backoff, plus periodic full reconnects every 15 minutes to prevent RTSP relay stalls. Stall detection triggers immediate reconnect if no data for 15 seconds.
+- 🎯 **Always-On Monitoring** — Continuous RTSP audio stream during configurable hours (default 7:30 AM – 8:30 PM). Zero detection latency — barks are caught within 1 second. Auto-reconnects on stream failure with exponential backoff, plus periodic full reconnects every 15 minutes to prevent RTSP relay stalls. Stall detection triggers immediate reconnect if no data for 15 seconds. Nest events outside the monitoring window are silently ignored — no alerts while the dog is asleep inside.
 - 🔀 **Cross-Referencing** — YAMNet detections are cross-referenced with Nest Sound events. Each bark is tagged with its source: "YAMNet" (AI only), "Nest" (Google only), or "Both" (both agree). Build ground truth by replying to validate or dismiss.
 - 🎬 **Audio & Video Clips** — Records audio and video during bark episodes only (not continuously). Reply `clip`, `video`, or `snapshot` to any Telegram notification to get the files sent straight to you.
 - 📱 **Telegram Notifications** — Real-time alerts when barking is detected. React with 👍 to confirm bark or 👎 to dismiss, or reply naturally to log context. Any unrecognised reply is saved as a comment on the Notion page.
 - 🏠 **Home Status Tracking** — Send `home` in Telegram to mark yourself as home — all subsequent bark episodes are auto-tagged "Owner Home" in Notion until you send `not home`. Works as a general message or reply to a notification.
 - 📋 **Notion Database** — A beautiful, searchable log of every bark episode with all the metadata you could dream of.
 - 📝 **Hierarchical Summaries** — Nightly report at 8:30pm with confirmed/not-bark/unconfirmed breakdown. On-demand: `summary week` gives daily breakdown, `summary month` gives weekly breakdown, `summary 2026` gives monthly breakdown. Stats (bark count, bark time, longest episode) are calculated from confirmed barks only.
-- 🔧 **Health Check** — Nightly report after the daily summary with processing rate (% real-time), disk usage, and clip directory stats. Also available on-demand: send `health` or `status` in Telegram anytime. Health timer starts on first audio frame to exclude startup overhead from the percentage.
+- 🔧 **Health Check** — Nightly report after the daily summary with processing rate (% real-time), measurement start time, disk usage, and clip directory stats. Also available on-demand: send `health` or `status` in Telegram anytime. Health timer starts on first audio frame to exclude startup overhead from the percentage. Send `health restart` to reset the timer and force a fresh RTSP reconnect for a clean measurement baseline.
 - 🗑️ **Auto Clip Cleanup** — Videos auto-deleted after 7 days, audio and snapshots after 21 days. No manual housekeeping required.
 - 🔗 **Nest Cam Links** — Jump straight to the camera footage for any event.
 - 📷 **Multi-Camera Support** — Monitor multiple Nest Cams with friendly names. Each bark is tagged to the camera that heard it.
@@ -115,7 +115,8 @@ bash scripts/deploy.sh
 - `summary month` / `summary monthly` / `summary March` — weekly breakdown
 - `summary year` / `summary yearly` / `summary 2026` — monthly breakdown
 - `summary last month` / `summary last year` — previous period
-- `health` / `status` — system health check (processing rate, disk, clips)
+- `health` / `status` — system health check (processing rate, measurement start time, disk, clips)
+- `health restart` — reset health timer + force fresh RTSP reconnect for clean measurement
 
 ## The Verdict
 
