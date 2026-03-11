@@ -46,10 +46,15 @@ class TelegramBot:
         self._poll_thread = None
         self._running = False
         self._last_update_id = 0
+        self._owner_home = False  # Persistent home state, toggled via "home"/"not home"
 
     @property
     def enabled(self) -> bool:
         return bool(self._token and self._chat_id)
+
+    @property
+    def owner_home(self) -> bool:
+        return self._owner_home
 
     def _send(self, method: str, **params) -> dict | None:
         try:
@@ -164,7 +169,7 @@ class TelegramBot:
 
         text += (
             f"\n\n_Reply to update:_\n"
-            f"e.g. `home, intervened, it was the mailman`"
+            f"👍 bark  👎 not bark  |  or reply with details"
         )
 
         self._send(
@@ -252,6 +257,7 @@ class TelegramBot:
 
         cam_line = f"📷 Camera: {episode.camera_name}\n" if episode.camera_name else ""
         source_line = f"🔍 Source: {episode.source.value}\n" if hasattr(episode, 'source') else ""
+        home_line = "🏠 Owner: Home\n" if self._owner_home else ""
         text = (
             f"🐕 *Bark Detected*\n\n"
             f"{cam_line}"
@@ -260,6 +266,7 @@ class TelegramBot:
             f"📊 Confidence: {confidence_pct:.0f}%\n"
             f"🔊 Type: {episode.dominant_bark_type.value}\n"
             f"{source_line}"
+            f"{home_line}"
         )
 
         if episode.nest_link:
@@ -267,7 +274,7 @@ class TelegramBot:
 
         text += (
             f"\n\n_Reply to update:_\n"
-            f"e.g. `home, intervened, it was the mailman`"
+            f"👍 bark  👎 not bark  |  or reply with details"
         )
 
         result = self._send(
@@ -688,8 +695,45 @@ class TelegramBot:
             parse_mode="Markdown",
         )
 
+    def _process_reaction(self, update: dict):
+        """Process a message reaction (thumbs up/down)."""
+        reaction = update.get("message_reaction", {})
+        user_id = reaction.get("user", {}).get("id")
+        if not user_id or not self._is_authorized(user_id):
+            return
+
+        message_id = reaction.get("message_id")
+        new_reactions = reaction.get("new_reaction", [])
+        if not message_id or not new_reactions:
+            return
+
+        emoji = new_reactions[0].get("emoji", "")
+        logger.info("Telegram reaction from %s: %s on message %s", user_id, emoji, message_id)
+
+        if emoji not in ("👍", "👎"):
+            return
+
+        if not self._notion:
+            return
+
+        page_id = self._notion.find_page_by_message_id(message_id)
+        if not page_id:
+            return
+
+        if emoji == "👍":
+            self._notion.update_bark_type(page_id, "Bark")
+            logger.info("👍 reaction: confirmed bark for page %s", page_id)
+        elif emoji == "👎":
+            self._notion.update_bark_type(page_id, "Not Bark")
+            logger.info("👎 reaction: marked not bark for page %s", page_id)
+
     def _process_update(self, update: dict):
         """Process a single Telegram update."""
+        # Handle reactions
+        if "message_reaction" in update:
+            self._process_reaction(update)
+            return
+
         message = update.get("message", {})
         user_id = message.get("from", {}).get("id")
         chat_id = message.get("chat", {}).get("id")
@@ -716,6 +760,23 @@ class TelegramBot:
                 else:
                     self._send("sendMessage", chat_id=self._chat_id,
                                text="❌ Health check not available")
+                return
+
+            # Home/not home toggle (as general message)
+            away_phrases = ["not home", "not at home", "leaving", "left home", "going out"]
+            if any(phrase in text_lower for phrase in away_phrases):
+                self._owner_home = False
+                self._send("sendMessage", chat_id=self._chat_id,
+                           text="🚪 Marked as *not home*. Episodes will no longer be auto-marked.",
+                           parse_mode="Markdown")
+                return
+
+            home_phrases = ["home", "i'm home", "im home", "got home", "back home"]
+            if any(phrase == text_lower or text_lower.startswith(phrase) for phrase in home_phrases):
+                self._owner_home = True
+                self._send("sendMessage", chat_id=self._chat_id,
+                           text="🏠 Marked as *home*. All episodes will be auto-marked as home until you say 'not home'.",
+                           parse_mode="Markdown")
                 return
 
         if not reply_msg_id and self._notion:
@@ -769,9 +830,11 @@ class TelegramBot:
                 if "was_home" in fields:
                     intervention_fields["was_home"] = fields["was_home"]
                     if fields["was_home"]:
-                        confirmations.append("✅ Marked as home")
+                        self._owner_home = True
+                        confirmations.append("✅ Marked as home (auto-marking on)")
                     else:
-                        confirmations.append("✅ Marked as away")
+                        self._owner_home = False
+                        confirmations.append("✅ Marked as away (auto-marking off)")
                 if fields.get("intervened"):
                     intervention_fields["intervened"] = True
                     confirmations.append("✅ Marked as intervened")
@@ -814,7 +877,7 @@ class TelegramBot:
                 params = {
                     "offset": self._last_update_id + 1,
                     "timeout": 30,
-                    "allowed_updates": ["message"],
+                    "allowed_updates": ["message", "message_reaction"],
                 }
                 resp = self._client.post(
                     f"{self._base_url}/getUpdates",

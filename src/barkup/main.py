@@ -380,6 +380,9 @@ class BarkupOrchestrator:
                         page_id = self._notion.log_episode(episode)
                         self._cache_files(page_id, clip_path=clip_path,
                                           video_path=video_path, snapshot_path=snapshot_path)
+                        # Auto-mark as home if owner has indicated they're home
+                        if self._telegram.owner_home:
+                            self._notion.update_intervention(page_id, {"was_home": True})
                         if self._telegram.enabled:
                             msg_id = self._telegram.send_bark_notification(episode, page_id)
                             if msg_id and page_id:
@@ -449,6 +452,8 @@ class BarkupOrchestrator:
                     page_id = self._notion.log_episode(remaining)
                     self._cache_files(page_id, clip_path=clip_path,
                                       video_path=video_path, snapshot_path=snapshot_path)
+                    if self._telegram.owner_home:
+                        self._notion.update_intervention(page_id, {"was_home": True})
                     if self._telegram.enabled:
                         msg_id = self._telegram.send_bark_notification(remaining, page_id)
                         if msg_id and page_id:
