@@ -37,6 +37,7 @@ class RTSPStream:
         self._video_process: subprocess.Popen | None = None
         self._active = False
         self._stream_started_at: float = 0
+        self._consecutive_slow: int = 0  # Count of consecutive slow reads
 
     def start(self) -> None:
         """Start RTSP stream and ffmpeg audio extraction."""
@@ -129,6 +130,7 @@ class RTSPStream:
         """
         if not self._process or not self._process.stdout:
             return None
+        t0 = time.time()
         fd = self._process.stdout.fileno()
         ready, _, _ = select.select([fd], [], [], timeout)
         if not ready:
@@ -138,13 +140,26 @@ class RTSPStream:
         if len(data) < FRAME_BYTES:
             logger.warning("read_frame got %d/%d bytes (stream ended)", len(data), FRAME_BYTES)
             return None
+
+        # Track slow reads — a frame is 0.975s of audio, so reads taking >3s
+        # indicate the RTSP relay is stalling
+        elapsed = time.time() - t0
+        if elapsed > 3.0:
+            self._consecutive_slow += 1
+        else:
+            self._consecutive_slow = 0
+
         return data
 
     @property
     def needs_reconnect(self) -> bool:
-        """True if the stream has been running long enough to warrant a full reconnect."""
+        """True if stream should reconnect (stalled or max age reached)."""
         if not self._stream_started_at:
             return False
+        # Stall detection: 3+ consecutive slow reads means relay has stalled
+        if self._consecutive_slow >= 3:
+            logger.warning("RTSP stall detected (%d consecutive slow reads)", self._consecutive_slow)
+            return True
         return (time.time() - self._stream_started_at) >= RECONNECT_INTERVAL
 
     def _schedule_extend(self):
