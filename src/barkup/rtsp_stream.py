@@ -126,40 +126,66 @@ class RTSPStream:
     def read_frame(self, timeout: float = 30.0) -> bytes | None:
         """Read one YAMNet-sized audio frame (0.96s) from ffmpeg pipe.
 
+        Uses non-blocking chunked reads so stalls are detected quickly
+        rather than blocking in a single read() for minutes.
+
         Returns None if no data within timeout (stream likely dead).
         """
         if not self._process or not self._process.stdout:
             return None
+
+        import os as _os
+        import fcntl
+
         t0 = time.time()
         fd = self._process.stdout.fileno()
-        ready, _, _ = select.select([fd], [], [], timeout)
-        if not ready:
-            logger.warning("read_frame timed out after %.0fs — stream may be dead", timeout)
-            return None
-        data = self._process.stdout.read(FRAME_BYTES)
-        if len(data) < FRAME_BYTES:
-            logger.warning("read_frame got %d/%d bytes (stream ended)", len(data), FRAME_BYTES)
-            return None
 
-        # Track slow reads — a frame is 0.975s of audio, so reads taking >3s
-        # indicate the RTSP relay is stalling
+        # Set non-blocking mode for chunked reading
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags | _os.O_NONBLOCK)
+
+        try:
+            buf = bytearray()
+            while len(buf) < FRAME_BYTES:
+                remaining_timeout = timeout - (time.time() - t0)
+                if remaining_timeout <= 0:
+                    logger.warning("read_frame timed out after %.0fs — stream may be dead", timeout)
+                    return None
+
+                # Wait for data with a short per-chunk timeout (5s)
+                chunk_timeout = min(5.0, remaining_timeout)
+                ready, _, _ = select.select([fd], [], [], chunk_timeout)
+                if not ready:
+                    # No data for 5s — stall detected
+                    self._consecutive_slow += 1
+                    if self._consecutive_slow >= 3:
+                        logger.warning("RTSP stall: no data for %.0fs (consecutive_slow=%d)",
+                                       time.time() - t0, self._consecutive_slow)
+                        return None  # Trigger reconnect via caller
+                    continue
+
+                chunk = _os.read(fd, FRAME_BYTES - len(buf))
+                if not chunk:
+                    logger.warning("read_frame got EOF after %d/%d bytes", len(buf), FRAME_BYTES)
+                    return None
+                buf.extend(chunk)
+                self._consecutive_slow = 0  # Got data, reset stall counter
+        finally:
+            # Restore blocking mode
+            fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+
+        # Track overall read time
         elapsed = time.time() - t0
         if elapsed > 3.0:
             self._consecutive_slow += 1
-        else:
-            self._consecutive_slow = 0
 
-        return data
+        return bytes(buf)
 
     @property
     def needs_reconnect(self) -> bool:
-        """True if stream should reconnect (stalled or max age reached)."""
+        """True if stream has exceeded max age (stalls are caught in read_frame)."""
         if not self._stream_started_at:
             return False
-        # Stall detection: 3+ consecutive slow reads means relay has stalled
-        if self._consecutive_slow >= 3:
-            logger.warning("RTSP stall detected (%d consecutive slow reads)", self._consecutive_slow)
-            return True
         return (time.time() - self._stream_started_at) >= RECONNECT_INTERVAL
 
     def _schedule_extend(self):
