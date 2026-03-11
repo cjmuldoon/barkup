@@ -74,6 +74,7 @@ class BarkupOrchestrator:
         self._monitor_start_frames = 0  # Frame count at window start
 
         self._force_reconnect = False  # Set by health restart command
+        self._monitor_threads: list[threading.Thread] = []
 
         # File path cache: page_id -> {clip_path, video_path, snapshot_path}
         self._file_cache: dict[str, dict[str, str]] = {}
@@ -529,16 +530,28 @@ class BarkupOrchestrator:
                 self._shutdown.wait(timeout=wait_seconds)
 
     def _start_monitoring(self):
-        """Start classification loops for all configured cameras."""
+        """Start classification loops for all configured cameras.
+
+        Clears all caches and resets health state for a fresh start each day.
+        """
         if self._monitor_active.is_set():
             return
 
         # Daily cleanup of old clip files
         cleanup_old_clips(settings.clip_storage_path)
 
+        # Fresh state for the new monitoring window
         self._monitor_start_time = None  # Set on first frame
         self._monitor_start_frames = self._classifier._frame_count
+        self._force_reconnect = False
+        with self._file_cache_lock:
+            self._file_cache.clear()
+        with self._nest_lock:
+            self._nest_events.clear()
+        logger.info("Caches cleared for fresh monitoring window")
+
         self._monitor_active.set()
+        self._monitor_threads.clear()
         camera_ids = settings.get_camera_ids()
 
         if not camera_ids:
@@ -563,12 +576,20 @@ class BarkupOrchestrator:
                 name=f"monitor-{camera_name}",
             )
             thread.start()
+            self._monitor_threads.append(thread)
 
     def _stop_monitoring(self):
-        """Signal classification loops to stop."""
+        """Stop all classification loops and wait for clean shutdown."""
         logger.info("Stopping monitoring (end of window)")
         self._monitor_active.clear()
-        # Classification loops will exit on their next iteration
+
+        # Wait for all classification threads to finish (they check _monitor_active)
+        for thread in self._monitor_threads:
+            thread.join(timeout=60)
+            if thread.is_alive():
+                logger.warning("Monitor thread %s didn't stop within 60s", thread.name)
+        self._monitor_threads.clear()
+        logger.info("All monitoring threads stopped")
 
     # --- Main entry point ---
 
