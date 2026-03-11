@@ -21,6 +21,9 @@ FRAME_BYTES = FRAME_SAMPLES * SAMPLE_WIDTH
 # Extend stream every 4.5 minutes (streams expire at 5 min)
 EXTEND_INTERVAL = 270
 
+# Full reconnect every 15 minutes to prevent RTSP relay data stalls
+RECONNECT_INTERVAL = 900
+
 
 class RTSPStream:
     def __init__(self, sdm_client: SDMClient, device_id: str):
@@ -33,6 +36,7 @@ class RTSPStream:
         self._recording_process: subprocess.Popen | None = None
         self._video_process: subprocess.Popen | None = None
         self._active = False
+        self._stream_started_at: float = 0
 
     def start(self) -> None:
         """Start RTSP stream and ffmpeg audio extraction."""
@@ -56,6 +60,7 @@ class RTSPStream:
         self._process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
         )
+        self._stream_started_at = time.time()
         logger.info("RTSP stream started, extracting audio via ffmpeg")
         self._schedule_extend()
 
@@ -134,6 +139,13 @@ class RTSPStream:
             logger.warning("read_frame got %d/%d bytes (stream ended)", len(data), FRAME_BYTES)
             return None
         return data
+
+    @property
+    def needs_reconnect(self) -> bool:
+        """True if the stream has been running long enough to warrant a full reconnect."""
+        if not self._stream_started_at:
+            return False
+        return (time.time() - self._stream_started_at) >= RECONNECT_INTERVAL
 
     def _schedule_extend(self):
         """Schedule stream extension before expiry."""

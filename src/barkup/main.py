@@ -413,6 +413,13 @@ class BarkupOrchestrator:
                     if self._classifier._frame_count % 120 == 0:
                         self._cleanup_old_nest_events(device_id)
 
+                    # Periodic full reconnect to prevent RTSP relay data stalls.
+                    # Only reconnect when idle (not mid-episode) to avoid losing data.
+                    if not tracker.is_active and stream.needs_reconnect:
+                        logger.info("Scheduled RTSP reconnect for %s (stream age %.0fm)",
+                                    camera_name, (time.time() - stream._stream_started_at) / 60)
+                        break
+
             except Exception:
                 logger.exception("Error in classification loop for %s", camera_name)
             finally:
@@ -453,9 +460,17 @@ class BarkupOrchestrator:
 
             # Reconnect if still within monitoring window
             if self._monitor_active.is_set() and not self._shutdown.is_set():
-                logger.info("Reconnecting in %ds...", reconnect_delay)
-                self._shutdown.wait(timeout=reconnect_delay)
-                reconnect_delay = min(reconnect_delay * 2, 60)  # Exponential backoff, max 60s
+                # Planned reconnects (stream was running) get minimal delay;
+                # error reconnects get exponential backoff
+                was_planned = stream._stream_started_at and (time.time() - stream._stream_started_at) > 60
+                if was_planned:
+                    delay = 2  # Brief pause before fresh RTSP URL
+                    reconnect_delay = settings.stream_reconnect_delay  # Reset backoff
+                else:
+                    delay = reconnect_delay
+                    reconnect_delay = min(reconnect_delay * 2, 60)
+                logger.info("Reconnecting in %ds...", delay)
+                self._shutdown.wait(timeout=delay)
 
         logger.info("Classification loop ended for %s", camera_name)
 
