@@ -304,6 +304,60 @@ class TelegramBot:
                 confirmed.append(ep)
         return confirmed, not_barks, unconfirmed
 
+    def _eddie_verdict(self, confirmed_count: int, longest_seconds: float, total_bark_time: float) -> str:
+        """Generate a playful Eddie verdict based on bark stats."""
+        import random
+
+        if confirmed_count == 0:
+            lines = [
+                "🏆 Eddie Dean: Model citizen. Karen in shambles.",
+                "😇 Eddie didn't make a peep. Somebody check he's breathing.",
+                "🥇 Zero barks. Eddie for Neighbour of the Year.",
+                "✨ Silence from Eddie Dean. Shadow the cat remains the real menace.",
+                "👼 Not a single bark. Eddie's lawyer rests their case.",
+                "🧘 Eddie achieved inner peace today. Namaste, good boy.",
+                "🎖️ Eddie's disciplinary record: spotless. Karen's letter: debunked.",
+                "🕊️ Eddie kept the peace. The suburb sleeps soundly tonight.",
+            ]
+        elif confirmed_count <= 2 and longest_seconds < 60:
+            lines = [
+                f"😊 {confirmed_count} little bark{'s' if confirmed_count > 1 else ''}. Eddie's practically a monk.",
+                f"🐾 Just {confirmed_count} bark{'s' if confirmed_count > 1 else ''}. Barely a whisper by Groodle standards.",
+                f"👍 {confirmed_count} bark{'s' if confirmed_count > 1 else ''}, longest {longest_seconds:.0f}s. That's not barking, that's commentary.",
+                f"😌 {confirmed_count} bark{'s' if confirmed_count > 1 else ''} all day? Shadow the cat causes more noise walking across the roof.",
+                f"🐕 {confirmed_count} tiny outburst{'s' if confirmed_count > 1 else ''}. Eddie showed remarkable restraint.",
+                f"📝 Dear Karen: {confirmed_count} bark{'s' if confirmed_count > 1 else ''}, {longest_seconds:.0f}s max. Please update your records.",
+            ]
+        elif confirmed_count <= 5 or longest_seconds < 120:
+            lines = [
+                f"😏 {confirmed_count} episodes. Eddie had opinions today, but kept them brief.",
+                f"🗣️ {confirmed_count} barks, longest {longest_seconds:.0f}s. Eddie was chatty but not unreasonable.",
+                f"📊 {confirmed_count} episodes. Still less noise than Karen's letter-writing sessions.",
+                f"🤷 {confirmed_count} barks. In Eddie's defence, things probably needed barking at.",
+                f"⚖️ {confirmed_count} episodes, {self._format_duration(total_bark_time)} total. The jury says: normal dog behaviour.",
+                f"🐶 {confirmed_count} episodes. Eddie's not perfect, but he's no 2-hour menace either.",
+            ]
+        elif longest_seconds < 300:
+            lines = [
+                f"😬 {confirmed_count} episodes, longest {longest_seconds / 60:.0f}m. Eddie was feeling spicy today.",
+                f"🌶️ {confirmed_count} episodes. Eddie chose violence (verbal).",
+                f"📢 {confirmed_count} episodes, {self._format_duration(total_bark_time)} of barking. Eddie had a lot to say.",
+                f"🎤 {confirmed_count} barking episodes. Eddie's audition for neighbourhood watch went long.",
+                f"😅 {confirmed_count} episodes. Eddie, mate, let's dial it back tomorrow.",
+                f"🔊 {confirmed_count} episodes today. Eddie's defence lawyer is sweating a little.",
+            ]
+        else:
+            lines = [
+                f"🚨 {confirmed_count} episodes, longest {longest_seconds / 60:.0f}m. Eddie. Mate. We need to talk.",
+                f"💀 {confirmed_count} episodes, {self._format_duration(total_bark_time)} of barking. Karen might have a point today.",
+                f"📣 {confirmed_count} episodes. Eddie went full neighbourhood broadcast system.",
+                f"😱 Longest bark: {longest_seconds / 60:.0f} minutes. Eddie was channelling his inner wolf.",
+                f"🙈 {confirmed_count} episodes. Even Eddie's lawyer is looking at the evidence nervously.",
+                f"🔥 {self._format_duration(total_bark_time)} of barking. Tomorrow's a new day, Eddie.",
+            ]
+
+        return random.choice(lines)
+
     def _format_duration(self, seconds: float) -> str:
         if seconds >= 60:
             return f"{seconds / 60:.0f}m {seconds % 60:.0f}s"
@@ -314,9 +368,11 @@ class TelegramBot:
                                tz, is_range: bool = False) -> str:
         """Build the stats header for a summary message."""
         if not episodes:
+            verdict = self._eddie_verdict(0, 0, 0)
             return (
                 f"📋 *Bark Summary — {label}*\n\n"
-                f"✅ No episodes detected! Good boy! 🐕"
+                f"✅ No episodes detected!\n\n"
+                f"{verdict}"
             )
 
         # Stats from confirmed barks only
@@ -331,17 +387,19 @@ class TelegramBot:
             text += f"  |  ❓ Unconfirmed: {len(unconfirmed)}"
         text += "\n"
 
+        longest_seconds = 0
         if confirmed:
             text += f"🔢 Total bark count: {total_barks}\n"
             text += f"⏱ Total bark time: {self._format_duration(total_bark_time)}\n"
 
             longest = max(confirmed, key=lambda e: e["duration_seconds"])
+            longest_seconds = longest["duration_seconds"]
             longest_time = longest["start_time"]
             fmt = "%I:%M %p %a" if is_range else "%I:%M %p"
             longest_time_str = longest_time.astimezone(tz).strftime(fmt) if longest_time.tzinfo else longest_time.strftime("%I:%M %p")
-            text += f"🔝 Longest bark: {self._format_duration(longest['duration_seconds'])} at {longest_time_str}\n"
+            text += f"🔝 Longest bark: {self._format_duration(longest_seconds)} at {longest_time_str}\n"
 
-        text += "\n"
+        text += f"\n{self._eddie_verdict(len(confirmed), longest_seconds, total_bark_time)}\n\n"
         return text
 
     def _build_episode_list(self, episodes: list[dict], tz, is_range: bool = False) -> str:
