@@ -308,6 +308,11 @@ class BarkupOrchestrator:
                         logger.warning("RTSP stream ended for %s, will reconnect", camera_name)
                         break
 
+                    # Start health timer on first frame (excludes startup overhead)
+                    if self._monitor_start_time is None:
+                        self._monitor_start_time = time.time()
+                        self._monitor_start_frames = self._classifier._frame_count
+
                     detection = self._classifier.classify_frame(frame)
                     was_active = tracker.is_active
 
@@ -529,7 +534,7 @@ class BarkupOrchestrator:
         # Daily cleanup of old clip files
         cleanup_old_clips(settings.clip_storage_path)
 
-        self._monitor_start_time = time.time()
+        self._monitor_start_time = None  # Set on first frame
         self._monitor_start_frames = self._classifier._frame_count
         self._monitor_active.set()
         camera_ids = settings.get_camera_ids()
