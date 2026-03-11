@@ -19,7 +19,8 @@ TELEGRAM_API = "https://api.telegram.org/bot{token}"
 
 class TelegramBot:
     def __init__(self, on_intervention: callable = None, notion_logger=None,
-                 on_file_request: callable = None, on_health_request: callable = None):
+                 on_file_request: callable = None, on_health_request: callable = None,
+                 on_health_restart: callable = None):
         """
         Args:
             on_intervention: Callback(page_id, fields) for intervention updates.
@@ -27,6 +28,7 @@ class TelegramBot:
             on_file_request: Callback(page_id, file_type) -> file_path or None.
                            file_type is "clip", "video", or "snapshot".
             on_health_request: Callback() -> dict with health metrics.
+            on_health_restart: Callback() to reset health timer and reconnect stream.
         """
         self._token = settings.telegram_bot_token
         self._chat_id = settings.telegram_chat_id
@@ -35,6 +37,7 @@ class TelegramBot:
         self._on_intervention = on_intervention
         self._on_file_request = on_file_request
         self._on_health_request = on_health_request
+        self._on_health_restart = on_health_restart
         self._notion = notion_logger
         # Allowed user IDs (owner + anyone they add)
         allowed = settings.telegram_allowed_users
@@ -437,7 +440,8 @@ class TelegramBot:
         """Send a system health check message.
 
         health dict keys: uptime_hours, frames_processed, frames_expected,
-                         processing_pct, disk_used_mb, disk_total_mb, clip_count, clip_size_mb
+                         processing_pct, disk_used_mb, disk_total_mb, clip_count, clip_size_mb,
+                         measure_since (datetime or None)
         """
         processing_pct = health.get("processing_pct", 0)
         status = "✅" if processing_pct >= 95 else "⚠️" if processing_pct >= 80 else "🔴"
@@ -445,6 +449,13 @@ class TelegramBot:
         text = f"🔧 *System Health Check*\n\n"
         text += f"{status} Processing: {processing_pct:.0f}% real-time"
         text += f" ({health.get('frames_processed', 0)} frames in {health.get('uptime_hours', 0):.1f}h)\n"
+
+        measure_since = health.get("measure_since")
+        if measure_since:
+            text += f"📏 Measuring since: {measure_since.strftime('%I:%M %p')}\n"
+        else:
+            text += f"📏 Measuring since: awaiting first frame\n"
+
         text += f"💾 Disk: {health.get('disk_used_mb', 0):.0f}MB / {health.get('disk_total_mb', 0):.0f}MB"
         disk_pct = (health.get('disk_used_mb', 0) / health.get('disk_total_mb', 1)) * 100
         disk_icon = "✅" if disk_pct < 80 else "⚠️" if disk_pct < 90 else "🔴"
@@ -815,6 +826,18 @@ class TelegramBot:
 
         if not reply_msg_id:
             text_lower = text.lower().strip()
+
+            # Health restart command — reset timer + reconnect stream
+            if text_lower in ("health restart", "restart health", "reset health"):
+                if self._on_health_restart:
+                    self._on_health_restart()
+                    self._send("sendMessage", chat_id=self._chat_id,
+                               text="🔄 Health timer reset and stream reconnecting. Send `health` in a minute to see fresh stats.",
+                               parse_mode="Markdown")
+                else:
+                    self._send("sendMessage", chat_id=self._chat_id,
+                               text="❌ Health restart not available")
+                return
 
             # Health check command
             if text_lower in ("health", "health check", "status"):

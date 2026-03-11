@@ -64,6 +64,7 @@ class BarkupOrchestrator:
             notion_logger=self._notion,
             on_file_request=self._handle_file_request,
             on_health_request=self._gather_health,
+            on_health_restart=self._health_restart,
         )
         self._tz = ZoneInfo(settings.timezone)
         self._shutdown = threading.Event()
@@ -71,6 +72,8 @@ class BarkupOrchestrator:
         self._start_time = time.time()
         self._monitor_start_time = None  # Set when monitoring window starts
         self._monitor_start_frames = 0  # Frame count at window start
+
+        self._force_reconnect = False  # Set by health restart command
 
         # File path cache: page_id -> {clip_path, video_path, snapshot_path}
         self._file_cache: dict[str, dict[str, str]] = {}
@@ -121,6 +124,14 @@ class BarkupOrchestrator:
         except Exception:
             logger.exception("Failed to send health check")
 
+    def _health_restart(self):
+        """Reset health timer and force RTSP reconnect for fresh measurement."""
+        logger.info("Health restart requested — resetting timer and triggering reconnect")
+        self._monitor_start_time = None  # Will be set on next frame
+        self._monitor_start_frames = self._classifier._frame_count
+        # Force reconnect by resetting stream age (next loop iteration will reconnect)
+        self._force_reconnect = True
+
     def _gather_health(self) -> dict:
         """Collect system health metrics."""
         import shutil
@@ -134,6 +145,11 @@ class BarkupOrchestrator:
         # Each frame is ~0.975s of audio; expected = monitoring_time / 0.975
         expected = monitor_seconds / 0.975 if monitor_seconds > 0 else 1
         processing_pct = (frames / expected) * 100 if expected > 0 else 0
+
+        # Measurement start time in local tz
+        measure_since = None
+        if self._monitor_start_time:
+            measure_since = datetime.fromtimestamp(self._monitor_start_time, tz=self._tz)
 
         # Disk usage
         disk = shutil.disk_usage("/")
@@ -160,6 +176,7 @@ class BarkupOrchestrator:
             "disk_total_mb": disk_total_mb,
             "clip_count": clip_count,
             "clip_size_mb": clip_size_mb,
+            "measure_since": measure_since,
         }
 
     # --- Nest event handling (snapshots + cross-referencing) ---
@@ -203,27 +220,10 @@ class BarkupOrchestrator:
                 self._nest_events[device_id] = []
             self._nest_events[device_id].append(nest_event)
 
-        # If monitoring is NOT active, log as Nest-only immediately
-        # (barking outside monitoring hours)
+        # Outside monitoring hours — ignore Nest events (dog is inside/asleep)
         if not self._monitor_active.is_set():
-            try:
-                page_id = self._notion.log_nest_event(
-                    timestamp=timestamp, event_type=event_type,
-                    camera_name=camera_name, nest_link=nest_link,
-                    snapshot_path=snapshot_path,
-                )
-                nest_event["page_id"] = page_id
-                if snapshot_path:
-                    self._cache_files(page_id, snapshot_path=snapshot_path)
-                if self._telegram.enabled:
-                    msg_id = self._telegram.send_nest_only_notification(
-                        timestamp=timestamp, camera_name=camera_name, nest_link=nest_link,
-                    )
-                    if msg_id and page_id:
-                        self._notion.set_telegram_message_id(page_id, msg_id)
-                logger.info("Nest-only event logged (outside monitoring hours): %s", page_id)
-            except Exception:
-                logger.exception("Failed to log Nest-only event")
+            logger.info("Ignoring Nest event outside monitoring hours: %s from %s", event_label, camera_name)
+            return
 
     def _find_matching_nest_event(self, device_id: str, episode_start: datetime) -> dict | None:
         """Find a recent unmatched Nest Sound event near an episode start time."""
@@ -423,9 +423,11 @@ class BarkupOrchestrator:
 
                     # Periodic full reconnect to prevent RTSP relay data stalls.
                     # Only reconnect when idle (not mid-episode) to avoid losing data.
-                    if not tracker.is_active and stream.needs_reconnect:
-                        logger.info("Scheduled RTSP reconnect for %s (stream age %.0fm)",
-                                    camera_name, (time.time() - stream._stream_started_at) / 60)
+                    if not tracker.is_active and (stream.needs_reconnect or self._force_reconnect):
+                        reason = "health restart" if self._force_reconnect else "scheduled"
+                        logger.info("RTSP reconnect (%s) for %s (stream age %.0fm)",
+                                    reason, camera_name, (time.time() - stream._stream_started_at) / 60)
+                        self._force_reconnect = False
                         break
 
             except Exception:
