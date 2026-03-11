@@ -319,7 +319,7 @@ class TelegramBot:
                 "🎖️ Eddie's disciplinary record: spotless. Karen's letter: debunked.",
                 "🕊️ Eddie kept the peace. The suburb sleeps soundly tonight.",
             ]
-        elif confirmed_count <= 2 and longest_seconds < 60:
+        elif confirmed_count <= 3 and longest_seconds < 60:
             lines = [
                 f"😊 {confirmed_count} little bark{'s' if confirmed_count > 1 else ''}. Eddie's practically a monk.",
                 f"🐾 Just {confirmed_count} bark{'s' if confirmed_count > 1 else ''}. Barely a whisper by Groodle standards.",
@@ -328,7 +328,7 @@ class TelegramBot:
                 f"🐕 {confirmed_count} tiny outburst{'s' if confirmed_count > 1 else ''}. Eddie showed remarkable restraint.",
                 f"📝 Dear Karen: {confirmed_count} bark{'s' if confirmed_count > 1 else ''}, {longest_seconds:.0f}s max. Please update your records.",
             ]
-        elif confirmed_count <= 5 or longest_seconds < 120:
+        elif confirmed_count <= 10 or (longest_seconds < 180 and total_bark_time < 300):
             lines = [
                 f"😏 {confirmed_count} episodes. Eddie had opinions today, but kept them brief.",
                 f"🗣️ {confirmed_count} barks, longest {longest_seconds:.0f}s. Eddie was chatty but not unreasonable.",
@@ -337,9 +337,9 @@ class TelegramBot:
                 f"⚖️ {confirmed_count} episodes, {self._format_duration(total_bark_time)} total. The jury says: normal dog behaviour.",
                 f"🐶 {confirmed_count} episodes. Eddie's not perfect, but he's no 2-hour menace either.",
             ]
-        elif longest_seconds < 300:
+        elif confirmed_count <= 20 or longest_seconds < 600:
             lines = [
-                f"😬 {confirmed_count} episodes, longest {longest_seconds / 60:.0f}m. Eddie was feeling spicy today.",
+                f"😬 {confirmed_count} episodes, longest {self._format_duration(longest_seconds)}. Eddie was feeling spicy today.",
                 f"🌶️ {confirmed_count} episodes. Eddie chose violence (verbal).",
                 f"📢 {confirmed_count} episodes, {self._format_duration(total_bark_time)} of barking. Eddie had a lot to say.",
                 f"🎤 {confirmed_count} barking episodes. Eddie's audition for neighbourhood watch went long.",
@@ -348,10 +348,10 @@ class TelegramBot:
             ]
         else:
             lines = [
-                f"🚨 {confirmed_count} episodes, longest {longest_seconds / 60:.0f}m. Eddie. Mate. We need to talk.",
+                f"🚨 {confirmed_count} episodes, longest {self._format_duration(longest_seconds)}. Eddie. Mate. We need to talk.",
                 f"💀 {confirmed_count} episodes, {self._format_duration(total_bark_time)} of barking. Karen might have a point today.",
                 f"📣 {confirmed_count} episodes. Eddie went full neighbourhood broadcast system.",
-                f"😱 Longest bark: {longest_seconds / 60:.0f} minutes. Eddie was channelling his inner wolf.",
+                f"😱 Longest bark: {self._format_duration(longest_seconds)}. Eddie was channelling his inner wolf.",
                 f"🙈 {confirmed_count} episodes. Even Eddie's lawyer is looking at the evidence nervously.",
                 f"🔥 {self._format_duration(total_bark_time)} of barking. Tomorrow's a new day, Eddie.",
             ]
