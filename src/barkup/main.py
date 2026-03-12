@@ -288,8 +288,6 @@ class BarkupOrchestrator:
         camera_id = device_parts[-1] if device_parts else ""
         nest_link = f"https://home.nest.com/camera/{camera_id}"
 
-        reconnect_delay = settings.stream_reconnect_delay
-
         while self._monitor_active.is_set() and not self._shutdown.is_set():
             stream = RTSPStream(self._sdm, device_id)
             tracker = EpisodeTracker()
@@ -301,7 +299,6 @@ class BarkupOrchestrator:
             try:
                 logger.info("Starting RTSP stream for %s", camera_name)
                 stream.start()
-                reconnect_delay = settings.stream_reconnect_delay  # Reset on success
 
                 while self._monitor_active.is_set() and not self._shutdown.is_set():
                     frame = stream.read_frame()
@@ -473,17 +470,10 @@ class BarkupOrchestrator:
 
             # Reconnect if still within monitoring window
             if self._monitor_active.is_set() and not self._shutdown.is_set():
-                # Planned reconnects (stream was running) get minimal delay;
-                # error reconnects get exponential backoff
-                was_planned = stream._stream_started_at and (time.time() - stream._stream_started_at) > 60
-                if was_planned:
-                    delay = 2  # Brief pause before fresh RTSP URL
-                    reconnect_delay = settings.stream_reconnect_delay  # Reset backoff
-                else:
-                    delay = reconnect_delay
-                    reconnect_delay = min(reconnect_delay * 2, 60)
-                logger.info("Reconnecting in %ds...", delay)
-                self._shutdown.wait(timeout=delay)
+                # Always use a short delay — each reconnect gets a fresh RTSP URL
+                # so there's no benefit to exponential backoff
+                logger.info("Reconnecting in 3s...")
+                self._shutdown.wait(timeout=3)
 
         logger.info("Classification loop ended for %s", camera_name)
 
