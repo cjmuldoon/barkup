@@ -37,7 +37,8 @@ class RTSPStream:
         self._video_process: subprocess.Popen | None = None
         self._active = False
         self._stream_started_at: float = 0
-        self._consecutive_slow: int = 0  # Count of consecutive slow reads
+        self._consecutive_stall: int = 0   # No data at all (5s select timeout)
+        self._consecutive_slow: int = 0    # Frames taking >3s (slow relay)
 
     def start(self) -> None:
         """Start RTSP stream and ffmpeg audio extraction."""
@@ -129,7 +130,12 @@ class RTSPStream:
         Uses non-blocking chunked reads so stalls are detected quickly
         rather than blocking in a single read() for minutes.
 
-        Returns None if no data within timeout (stream likely dead).
+        Detects two failure modes:
+        - Complete stall: no data at all for 15s (3 × 5s select timeouts)
+        - Slow relay: data trickles in but frames take >3s each.
+          3 consecutive slow frames triggers reconnect.
+
+        Returns None if stream is dead or degraded (triggers reconnect).
         """
         if not self._process or not self._process.stdout:
             return None
@@ -157,10 +163,10 @@ class RTSPStream:
                 ready, _, _ = select.select([fd], [], [], chunk_timeout)
                 if not ready:
                     # No data for 5s — stall detected
-                    self._consecutive_slow += 1
-                    if self._consecutive_slow >= 3:
-                        logger.warning("RTSP stall: no data for %.0fs (consecutive_slow=%d)",
-                                       time.time() - t0, self._consecutive_slow)
+                    self._consecutive_stall += 1
+                    if self._consecutive_stall >= 3:
+                        logger.warning("RTSP stall: no data for %.0fs",
+                                       time.time() - t0)
                         return None  # Trigger reconnect via caller
                     continue
 
@@ -169,15 +175,21 @@ class RTSPStream:
                     logger.warning("read_frame got EOF after %d/%d bytes", len(buf), FRAME_BYTES)
                     return None
                 buf.extend(chunk)
-                self._consecutive_slow = 0  # Got data, reset stall counter
+                self._consecutive_stall = 0  # Got data, reset stall counter
         finally:
             # Restore blocking mode
             fcntl.fcntl(fd, fcntl.F_SETFL, flags)
 
-        # Track overall read time
+        # Track slow frames (relay degradation — data arrives but too slowly)
         elapsed = time.time() - t0
         if elapsed > 3.0:
             self._consecutive_slow += 1
+            if self._consecutive_slow >= 3:
+                logger.warning("RTSP slow: %d consecutive frames took >3s (last %.1fs) — reconnecting",
+                               self._consecutive_slow, elapsed)
+                return None  # Trigger reconnect
+        else:
+            self._consecutive_slow = 0  # Fast frame, reset
 
         return bytes(buf)
 
