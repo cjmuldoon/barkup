@@ -261,6 +261,15 @@ class TelegramBot:
         cam_line = f"📷 Camera: {episode.camera_name}\n" if episode.camera_name else ""
         source_line = f"🔍 Source: {episode.source.value}\n" if hasattr(episode, 'source') else ""
         home_line = "🏠 Owner: Home\n" if self._owner_home else ""
+
+        # Auto-confirm/dismiss status
+        if confidence_pct < settings.confidence_dismiss_below * 100:
+            status_line = "❌ Auto-dismissed (low confidence)\n"
+        elif confidence_pct >= settings.confidence_confirm_above * 100:
+            status_line = "✅ Auto-confirmed as Bark\n"
+        else:
+            status_line = ""
+
         text = (
             f"🐕 *Bark Detected*\n\n"
             f"{cam_line}"
@@ -270,6 +279,7 @@ class TelegramBot:
             f"🔊 Type: {episode.dominant_bark_type.value}\n"
             f"{source_line}"
             f"{home_line}"
+            f"{status_line}"
         )
 
         if episode.nest_link:

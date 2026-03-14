@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # Bark detection tuning
     bark_confidence_threshold: float = 0.45
     episode_cooldown_seconds: int = 30
+    confidence_dismiss_below: float = 0.75   # Auto-dismiss as Not Bark
+    confidence_confirm_above: float = 0.85   # Auto-confirm as Bark
 
     # GCP Service Account (for Pub/Sub)
     google_application_credentials: str | None = None

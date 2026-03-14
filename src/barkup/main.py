@@ -383,6 +383,17 @@ class BarkupOrchestrator:
                         page_id = self._notion.log_episode(episode)
                         self._cache_files(page_id, clip_path=clip_path,
                                           video_path=video_path, snapshot_path=snapshot_path)
+
+                        # Auto-confirm/dismiss based on confidence
+                        if episode.peak_confidence < settings.confidence_dismiss_below:
+                            self._notion.update_bark_type(page_id, "Not Bark")
+                            logger.info("Auto-dismissed (confidence %.0f%% < %.0f%%)",
+                                        episode.peak_confidence * 100, settings.confidence_dismiss_below * 100)
+                        elif episode.peak_confidence >= settings.confidence_confirm_above:
+                            self._notion.update_bark_type(page_id, "Bark")
+                            logger.info("Auto-confirmed (confidence %.0f%% >= %.0f%%)",
+                                        episode.peak_confidence * 100, settings.confidence_confirm_above * 100)
+
                         # Auto-mark as home if owner has indicated they're home
                         if self._telegram.owner_home:
                             self._notion.update_intervention(page_id, {"was_home": True})
@@ -457,6 +468,13 @@ class BarkupOrchestrator:
                     page_id = self._notion.log_episode(remaining)
                     self._cache_files(page_id, clip_path=clip_path,
                                       video_path=video_path, snapshot_path=snapshot_path)
+
+                    # Auto-confirm/dismiss based on confidence
+                    if remaining.peak_confidence < settings.confidence_dismiss_below:
+                        self._notion.update_bark_type(page_id, "Not Bark")
+                    elif remaining.peak_confidence >= settings.confidence_confirm_above:
+                        self._notion.update_bark_type(page_id, "Bark")
+
                     if self._telegram.owner_home:
                         self._notion.update_intervention(page_id, {"was_home": True})
                     if self._telegram.enabled:
