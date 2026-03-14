@@ -49,14 +49,14 @@ class TelegramBot:
         self._poll_thread = None
         self._running = False
         self._last_update_id = 0
-        self._owner_home = False  # Persistent home state, toggled via "home"/"not home"
+        self._owner_home: bool | None = None  # None=unknown, True=home, False=not home
 
     @property
     def enabled(self) -> bool:
         return bool(self._token and self._chat_id)
 
     @property
-    def owner_home(self) -> bool:
+    def owner_home(self) -> bool | None:
         return self._owner_home
 
     def _send(self, method: str, **params) -> dict | None:
@@ -260,12 +260,18 @@ class TelegramBot:
 
         cam_line = f"📷 Camera: {episode.camera_name}\n" if episode.camera_name else ""
         source_line = f"🔍 Source: {episode.source.value}\n" if hasattr(episode, 'source') else ""
-        home_line = "🏠 Owner: Home\n" if self._owner_home else ""
+        if self._owner_home is True:
+            home_line = "🏠 Owner: Home\n"
+        elif self._owner_home is False:
+            home_line = "🚪 Owner: Not home\n"
+        else:
+            home_line = ""
 
-        # Auto-confirm/dismiss status
+        # Auto-confirm/dismiss status (lower confirm threshold when not home)
+        confirm_threshold = settings.confidence_dismiss_below if self._owner_home is False else settings.confidence_confirm_above
         if confidence_pct < settings.confidence_dismiss_below * 100:
             status_line = "❌ Auto-dismissed (low confidence)\n"
-        elif confidence_pct >= settings.confidence_confirm_above * 100:
+        elif confidence_pct >= confirm_threshold * 100:
             status_line = "✅ Auto-confirmed as Bark\n"
         else:
             status_line = ""
