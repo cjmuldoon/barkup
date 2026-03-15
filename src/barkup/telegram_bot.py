@@ -441,9 +441,11 @@ class TelegramBot:
         date_str = date.strftime("%A, %B %d")
 
         confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
-        text = self._build_summary_header(date_str, episodes, confirmed, not_barks, unconfirmed, tz)
-        if episodes:
-            text += self._build_episode_list(episodes, tz)
+        # Exclude auto-dismissed "Not Bark" episodes from the summary
+        visible_episodes = [ep for ep in episodes if ep.get("bark_type") != "Not Bark"]
+        text = self._build_summary_header(date_str, visible_episodes, confirmed, not_barks, unconfirmed, tz)
+        if visible_episodes:
+            text += self._build_episode_list(visible_episodes, tz)
 
         self._send(
             "sendMessage",
@@ -711,6 +713,8 @@ class TelegramBot:
     def _build_grouped_summary(self, episodes: list[dict], label: str,
                                 group_key_fn, group_label_fn, tz) -> str:
         """Build a summary with sub-period breakdown."""
+        # Exclude "Not Bark" episodes from grouped summaries
+        episodes = [ep for ep in episodes if ep.get("bark_type") != "Not Bark"]
         confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
         text = self._build_summary_header(label, episodes, confirmed, not_barks, unconfirmed, tz, is_range=True)
 
@@ -768,10 +772,11 @@ class TelegramBot:
             )
         else:
             # Flat episode list (daily or small ranges)
-            confirmed, not_barks, unconfirmed = self._categorise_episodes(episodes)
-            text = self._build_summary_header(label, episodes, confirmed, not_barks, unconfirmed, tz, is_range)
-            if episodes:
-                text += self._build_episode_list(episodes, tz, is_range)
+            visible = [ep for ep in episodes if ep.get("bark_type") != "Not Bark"]
+            confirmed, not_barks, unconfirmed = self._categorise_episodes(visible)
+            text = self._build_summary_header(label, visible, confirmed, not_barks, unconfirmed, tz, is_range)
+            if visible:
+                text += self._build_episode_list(visible, tz, is_range)
 
         self._send(
             "sendMessage",
