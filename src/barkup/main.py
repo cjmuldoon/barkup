@@ -388,8 +388,10 @@ class BarkupOrchestrator:
                         # When owner is explicitly not home, lower the confirm threshold
                         # (can't verify in person, and dog is unsupervised)
                         confirm_threshold = settings.confidence_dismiss_below if self._telegram.owner_home is False else settings.confidence_confirm_above
+                        auto_dismissed = False
                         if episode.peak_confidence < settings.confidence_dismiss_below:
                             self._notion.update_bark_type(page_id, "Not Bark")
+                            auto_dismissed = True
                             logger.info("Auto-dismissed (confidence %.0f%% < %.0f%%)",
                                         episode.peak_confidence * 100, settings.confidence_dismiss_below * 100)
                         elif episode.peak_confidence >= confirm_threshold:
@@ -401,7 +403,8 @@ class BarkupOrchestrator:
                         # Auto-mark as home if owner has indicated they're home
                         if self._telegram.owner_home is True:
                             self._notion.update_intervention(page_id, {"was_home": True})
-                        if self._telegram.enabled:
+                        # Skip notification for auto-dismissed episodes
+                        if self._telegram.enabled and not auto_dismissed:
                             msg_id = self._telegram.send_bark_notification(episode, page_id)
                             if msg_id and page_id:
                                 self._notion.set_telegram_message_id(page_id, msg_id)
@@ -475,14 +478,16 @@ class BarkupOrchestrator:
 
                     # Auto-confirm/dismiss based on confidence
                     confirm_threshold = settings.confidence_dismiss_below if self._telegram.owner_home is False else settings.confidence_confirm_above
+                    auto_dismissed = False
                     if remaining.peak_confidence < settings.confidence_dismiss_below:
                         self._notion.update_bark_type(page_id, "Not Bark")
+                        auto_dismissed = True
                     elif remaining.peak_confidence >= confirm_threshold:
                         self._notion.update_bark_type(page_id, "Bark")
 
                     if self._telegram.owner_home is True:
                         self._notion.update_intervention(page_id, {"was_home": True})
-                    if self._telegram.enabled:
+                    if self._telegram.enabled and not auto_dismissed:
                         msg_id = self._telegram.send_bark_notification(remaining, page_id)
                         if msg_id and page_id:
                             self._notion.set_telegram_message_id(page_id, msg_id)
