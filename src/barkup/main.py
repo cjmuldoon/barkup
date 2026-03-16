@@ -288,6 +288,8 @@ class BarkupOrchestrator:
         camera_id = device_parts[-1] if device_parts else ""
         nest_link = f"https://home.nest.com/camera/{camera_id}"
 
+        consecutive_errors = 0
+
         while self._monitor_active.is_set() and not self._shutdown.is_set():
             stream = RTSPStream(self._sdm, device_id)
             tracker = EpisodeTracker()
@@ -295,10 +297,13 @@ class BarkupOrchestrator:
             video_path = None
             wav_writer = None
             recording = False
+            stream_started = False
 
             try:
                 logger.info("Starting RTSP stream for %s", camera_name)
                 stream.start()
+                stream_started = True
+                consecutive_errors = 0
 
                 while self._monitor_active.is_set() and not self._shutdown.is_set():
                     frame = stream.read_frame()
@@ -498,10 +503,15 @@ class BarkupOrchestrator:
 
             # Reconnect if still within monitoring window
             if self._monitor_active.is_set() and not self._shutdown.is_set():
-                # Always use a short delay — each reconnect gets a fresh RTSP URL
-                # so there's no benefit to exponential backoff
-                logger.info("Reconnecting in 3s...")
-                self._shutdown.wait(timeout=3)
+                if stream_started:
+                    # Stream was running — quick reconnect with fresh RTSP URL
+                    delay = 3
+                else:
+                    # Stream never started (auth/rate-limit error) — back off
+                    consecutive_errors += 1
+                    delay = min(30 * consecutive_errors, 300)  # 30s, 60s, 90s... max 5min
+                logger.info("Reconnecting in %ds...", delay)
+                self._shutdown.wait(timeout=delay)
 
         logger.info("Classification loop ended for %s", camera_name)
 
