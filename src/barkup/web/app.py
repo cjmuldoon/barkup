@@ -91,34 +91,50 @@ def create_app(db=None):
     @app.route("/")
     def index():
         db = get_db()
+        tz = ZoneInfo(settings.timezone)
+        now_time = datetime.now(tz)
+        monitor_start = now_time.replace(hour=settings.monitor_start_hour, minute=settings.monitor_start_minute, second=0)
+        monitor_end = now_time.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
+
+        # Determine which period we're in
+        if monitor_start <= now_time < monitor_end:
+            period = "during"
+        elif now_time >= monitor_end:
+            period = "after"  # same day evening
+        else:
+            period = "before"  # next day morning, before monitoring starts
+
+        # Get today's summary (always shown in stats)
         summary = db.get_daily_summary()
         all_time = db.get_all_time_stats()
         all_time["busiest_hour"] = db.get_most_common_peak_hour()
         weekly = db.get_weekly_daily_totals(weeks=2)
-        assessment = generate_assessment(summary)
 
-        tz = ZoneInfo(settings.timezone)
-        current_hour = datetime.now(tz).hour
+        # For mood: use yesterday's data when before monitoring (midnight–07:30)
+        if period == "before":
+            yesterday = (now_time - timedelta(days=1)).strftime("%Y-%m-%d")
+            mood_summary = db.get_daily_summary(yesterday)
+        else:
+            mood_summary = summary
+
+        current_hour = now_time.hour
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
 
-        # During monitoring hours: mood based on current hour's barking
-        # After monitoring ends (20:30+): mood based on total day
-        now_min = datetime.now(tz)
-        monitor_end_today = now_min.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
-        monitoring_ended = now_min >= monitor_end_today
-        if monitoring_ended:
-            total_episodes = summary.get("total_episodes", 0)
-            if total_episodes > 15:
+        # Calculate mood
+        if period == "during":
+            if bark_this_hour > 2:
                 mood = "devil"
-            elif total_episodes <= 5:
+            elif bark_this_hour < 0.5:
                 mood = "angel"
             else:
                 mood = "neutral"
         else:
-            if bark_this_hour > 2:
+            # After monitoring or before next day — use day total
+            total_episodes = mood_summary.get("total_episodes", 0)
+            if total_episodes > 15:
                 mood = "devil"
-            elif bark_this_hour < 0.5:
+            elif total_episodes <= 5:
                 mood = "angel"
             else:
                 mood = "neutral"
@@ -128,15 +144,14 @@ def create_app(db=None):
         if mood_override in ("devil", "angel", "neutral"):
             mood = mood_override
 
-        # Build headline based on time of day and mood
-        now_time = datetime.now(tz)
-        monitor_start = now_time.replace(hour=settings.monitor_start_hour, minute=settings.monitor_start_minute, second=0)
-        monitor_end = now_time.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
-        is_good = mood != "devil"
+        # Generate assessment from the relevant summary
+        assessment = generate_assessment(mood_summary)
 
-        if monitor_start <= now_time < monitor_end:
+        # Build headline
+        is_good = mood != "devil"
+        if period == "during":
             headline = "Eddie is a good boy!" if is_good else "Eddie is NOT a good boy!"
-        elif now_time >= monitor_end:
+        elif period == "after":
             headline = "Eddie was a good boy today!" if is_good else "Eddie was NOT a good boy today!"
         else:
             headline = "Eddie was a good boy yesterday!" if is_good else "Eddie was NOT a good boy yesterday!"
