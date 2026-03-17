@@ -75,7 +75,9 @@ def create_app(db=None):
         summary = db.get_daily_summary()
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
-        monitoring_ended = current_hour >= settings.monitor_end_hour
+        now_min = datetime.now(tz)
+        monitor_end_today = now_min.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
+        monitoring_ended = now_min >= monitor_end_today
         if monitoring_ended:
             total_episodes = summary.get("total_episodes", 0)
             mood = "devil" if total_episodes > 15 else ("angel" if total_episodes <= 5 else "neutral")
@@ -102,7 +104,9 @@ def create_app(db=None):
 
         # During monitoring hours: mood based on current hour's barking
         # After monitoring ends (20:30+): mood based on total day
-        monitoring_ended = current_hour >= settings.monitor_end_hour
+        now_min = datetime.now(tz)
+        monitor_end_today = now_min.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
+        monitoring_ended = now_min >= monitor_end_today
         if monitoring_ended:
             total_episodes = summary.get("total_episodes", 0)
             if total_episodes > 15:
@@ -158,7 +162,9 @@ def create_app(db=None):
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
 
-        monitoring_ended = current_hour >= settings.monitor_end_hour
+        now_min = datetime.now(tz)
+        monitor_end_today = now_min.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
+        monitoring_ended = now_min >= monitor_end_today
         if monitoring_ended:
             total_episodes = summary.get("total_episodes", 0)
             mood = "devil" if total_episodes > 15 else ("angel" if total_episodes <= 5 else "neutral")
