@@ -87,7 +87,7 @@
 
 {% if summary.hourly_bark_minutes %}
 <div class="chart-section">
-    <h2>Today's Bark Activity (minutes)</h2>
+    <h2>Today's Bark Activity (barks per minute)</h2>
     <div class="hourly-chart">
         {% for hour in range(7, 21) %}
             {% set minutes = summary.hourly_bark_minutes.get(hour, 0) %}
@@ -110,7 +110,7 @@
 
 {% if weekly %}
 <div class="chart-section">
-    <h2>Last 14 Days (bark count)</h2>
+    <h2>Last 14 Days (daily bark count)</h2>
     <div class="hourly-chart daily-chart">
         {% set max_bc = weekly|map(attribute='bark_count')|max if weekly else 1 %}
         {% for day in weekly %}
