@@ -91,6 +91,7 @@ def create_app(db=None):
         db = get_db()
         summary = db.get_daily_summary()
         all_time = db.get_all_time_stats()
+        all_time["busiest_hour"] = db.get_most_common_peak_hour()
         weekly = db.get_weekly_daily_totals(weeks=2)
         assessment = generate_assessment(summary)
 

@@ -72,7 +72,7 @@
     <h3>Processing Rate</h3>
     <div class="progress-bar-container">
         <div class="progress-bar {% if health.processing_pct > 90 %}bar-good{% elif health.processing_pct > 50 %}bar-warn{% else %}bar-bad{% endif %}"
-             style="width: {{ health.processing_pct|min(100) }}%">
+             style="width: {{ [health.processing_pct, 100]|min }}%">
             {{ "%.1f"|format(health.processing_pct) }}%
         </div>
     </div>

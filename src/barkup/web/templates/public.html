@@ -41,11 +41,21 @@
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ all_time.total_bark_minutes }}</div>
-        <div class="stat-label">Total Minutes Barking</div>
+        <div class="stat-label">Total Barking (minutes)</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ all_time.active_days }}</div>
         <div class="stat-label">Days Tracked</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">
+            {% if all_time.busiest_hour is not none %}
+                {{ "%02d:00"|format(all_time.busiest_hour) }}
+            {% else %}
+                --
+            {% endif %}
+        </div>
+        <div class="stat-label">Busiest Hour (avg)</div>
     </div>
 </div>
 
@@ -77,7 +87,7 @@
 
 {% if summary.hourly_bark_minutes %}
 <div class="chart-section">
-    <h2>Today's Bark Activity</h2>
+    <h2>Today's Bark Activity (minutes)</h2>
     <div class="hourly-chart">
         {% for hour in range(7, 21) %}
             {% set minutes = summary.hourly_bark_minutes.get(hour, 0) %}
@@ -100,17 +110,17 @@
 
 {% if weekly %}
 <div class="chart-section">
-    <h2>Last 14 Days</h2>
+    <h2>Last 14 Days (bark count)</h2>
     <div class="hourly-chart daily-chart">
-        {% set max_ep = weekly|map(attribute='episodes')|max if weekly else 1 %}
+        {% set max_bc = weekly|map(attribute='bark_count')|max if weekly else 1 %}
         {% for day in weekly %}
             <div class="bar-container">
-                {% if day.episodes > 0 %}
-                    <div class="bar-value">{{ day.episodes }}</div>
+                {% if day.bark_count > 0 %}
+                    <div class="bar-value">{{ day.bark_count }}</div>
                 {% endif %}
-                <div class="bar {% if day.episodes > 10 %}bar-hot{% elif day.episodes > 3 %}bar-warm{% else %}bar-cool{% endif %}"
-                     style="height: {{ (day.episodes / max_ep * 100) if max_ep > 0 else 0 }}%"
-                     title="{{ day.date }}: {{ day.episodes }} episodes, {{ day.bark_minutes }} min">
+                <div class="bar {% if day.bark_count > 100 %}bar-hot{% elif day.bark_count > 30 %}bar-warm{% else %}bar-cool{% endif %}"
+                     style="height: {{ (day.bark_count / max_bc * 100) if max_bc > 0 else 0 }}%"
+                     title="{{ day.date }}: {{ day.bark_count }} barks, {{ day.episodes }} episodes">
                 </div>
                 <div class="bar-label">{{ day.date[8:] }}</div>
             </div>

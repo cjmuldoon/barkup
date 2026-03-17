@@ -404,6 +404,44 @@ class BarkDatabase:
             "active_days": row["active_days"],
         }
 
+    def get_most_common_peak_hour(self) -> int | None:
+        """Find the most common 'busiest hour of the day' across all tracked days.
+
+        For each day, finds the hour with the most confirmed episodes,
+        then returns the hour that appears most often as the peak.
+        """
+        tz = ZoneInfo(settings.timezone)
+        conn = self._get_conn()
+        rows = conn.execute(
+            """SELECT start_time FROM episodes
+               WHERE bark_type NOT IN ('Not Bark', 'Unconfirmed')"""
+        ).fetchall()
+
+        if not rows:
+            return None
+
+        # Group episodes by (day, hour)
+        day_hours: dict[str, dict[int, int]] = {}
+        for row in rows:
+            dt = datetime.fromisoformat(row["start_time"]).astimezone(tz)
+            day_key = dt.strftime("%Y-%m-%d")
+            hour = dt.hour
+            if day_key not in day_hours:
+                day_hours[day_key] = {}
+            day_hours[day_key][hour] = day_hours[day_key].get(hour, 0) + 1
+
+        # Find peak hour for each day
+        from collections import Counter
+        peak_hours = Counter()
+        for day, hours in day_hours.items():
+            if hours:
+                peak = max(hours, key=hours.get)
+                peak_hours[peak] += 1
+
+        if not peak_hours:
+            return None
+        return peak_hours.most_common(1)[0][0]
+
     def get_weekly_daily_totals(self, weeks: int = 2) -> list[dict]:
         """Return daily episode count + bark minutes for the last N weeks."""
         tz = ZoneInfo(settings.timezone)
@@ -416,7 +454,7 @@ class BarkDatabase:
 
         conn = self._get_conn()
         rows = conn.execute(
-            """SELECT start_time, bark_time_sec FROM episodes
+            """SELECT start_time, bark_time_sec, bark_count FROM episodes
                WHERE start_time >= ? AND start_time < ?
                AND bark_type NOT IN ('Not Bark', 'Unconfirmed')""",
             (start_utc, end_utc),
@@ -427,16 +465,17 @@ class BarkDatabase:
             dt = datetime.fromisoformat(row["start_time"]).astimezone(tz)
             day_key = dt.strftime("%Y-%m-%d")
             if day_key not in daily:
-                daily[day_key] = {"date": day_key, "episodes": 0, "bark_minutes": 0}
+                daily[day_key] = {"date": day_key, "episodes": 0, "bark_minutes": 0, "bark_count": 0}
             daily[day_key]["episodes"] += 1
             daily[day_key]["bark_minutes"] += (row["bark_time_sec"] or 0) / 60
+            daily[day_key]["bark_count"] += row["bark_count"] or 0
 
         # Fill in missing days
         result = []
         current = start.replace(hour=0, minute=0, second=0, microsecond=0)
         while current <= end:
             day_key = current.strftime("%Y-%m-%d")
-            entry = daily.get(day_key, {"date": day_key, "episodes": 0, "bark_minutes": 0})
+            entry = daily.get(day_key, {"date": day_key, "episodes": 0, "bark_minutes": 0, "bark_count": 0})
             entry["bark_minutes"] = round(entry["bark_minutes"], 1)
             result.append(entry)
             current += timedelta(days=1)
