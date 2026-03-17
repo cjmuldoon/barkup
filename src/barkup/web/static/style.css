@@ -217,6 +217,13 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
+.stat-callout {
+    font-size: 0.75rem;
+    color: var(--accent);
+    margin-top: 0.3rem;
+    font-family: var(--mono);
+    opacity: 0.8;
+}
 
 /* Chart */
 .chart-section {

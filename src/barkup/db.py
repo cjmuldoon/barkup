@@ -343,6 +343,7 @@ class BarkDatabase:
 
         confirmed = [e for e in episodes if e["bark_type"] not in ("Not Bark", "Unconfirmed")]
         total_bark_sec = sum(e["bark_time_seconds"] for e in confirmed)
+        total_bark_count = sum(e["bark_count"] for e in confirmed)
 
         # Find peak hour
         hourly = self.get_hourly_bark_minutes(date)
@@ -351,6 +352,7 @@ class BarkDatabase:
         return {
             "date": date,
             "total_episodes": len(confirmed),
+            "total_bark_count": total_bark_count,
             "total_bark_minutes": round(total_bark_sec / 60, 1),
             "dismissed": len([e for e in episodes if e["bark_type"] == "Not Bark"]),
             "peak_hour": peak_hour,
