@@ -48,6 +48,18 @@ class Settings(BaseSettings):
     s3_access_key: str | None = None
     s3_secret_key: str | None = None
 
+    # SQLite database
+    db_path: str = "./data/barkup.db"
+
+    # Web app
+    flask_secret_key: str = "change-me-in-production"
+    web_port: int = 5000
+    web_username: str = "admin"
+    web_password: str | None = None  # Set to enable login
+
+    # LLM assessment (Claude API)
+    anthropic_api_key: str | None = None
+
     # Camera names (optional, comma-separated matching camera_device_ids order)
     # e.g. "Indoor,Backyard"
     camera_names: str | None = None

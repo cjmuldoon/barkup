@@ -18,6 +18,11 @@ RUN mkdir -p models && \
     curl -L 'https://tfhub.dev/google/lite-model/yamnet/classification/tflite/1?lite-format=tflite' \
     -o models/yamnet.tflite
 
+# Create data directory for SQLite
+RUN mkdir -p /app/data
+
 ENV PYTHONPATH=/app/src
+
+EXPOSE 5000
 
 CMD ["python", "-m", "barkup.main"]

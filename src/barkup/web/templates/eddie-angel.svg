@@ -1,0 +1,89 @@
+<svg class="eddie-svg eddie-angel" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .eddie-angel { animation: angel-float 3s ease-in-out infinite; }
+    @keyframes angel-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+    .halo { animation: halo-glow 2s ease-in-out infinite alternate; }
+    @keyframes halo-glow {
+      0% { opacity: 0.6; }
+      100% { opacity: 1; filter: drop-shadow(0 0 6px #ffd700); }
+    }
+    .zzz { animation: zzz-float 2s ease-in-out infinite; }
+    .zzz-1 { animation-delay: 0s; }
+    .zzz-2 { animation-delay: 0.7s; }
+    .zzz-3 { animation-delay: 1.4s; }
+    @keyframes zzz-float {
+      0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+      50% { opacity: 1; }
+      100% { opacity: 0; transform: translate(10px, -20px) scale(1.2); }
+    }
+    .sparkle { animation: sparkle-twinkle 1.5s ease-in-out infinite alternate; }
+    @keyframes sparkle-twinkle {
+      0% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+    .angel-bg { animation: bg-glow 3s ease-in-out infinite alternate; }
+    @keyframes bg-glow {
+      0% { stop-color: #fff8dc; stop-opacity: 0.1; }
+      100% { stop-color: #ffd700; stop-opacity: 0.15; }
+    }
+    .breathing {
+      animation: breathe 3s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { rx: 45; ry: 33; }
+      50% { rx: 46; ry: 35; }
+    }
+  </style>
+  <defs>
+    <radialGradient id="angel-bg-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" class="angel-bg" stop-color="#fff8dc" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#fff8dc" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background glow -->
+  <circle cx="100" cy="110" r="85" fill="url(#angel-bg-grad)"/>
+
+  <!-- Halo -->
+  <ellipse class="halo" cx="100" cy="48" rx="22" ry="6" fill="none" stroke="#ffd700" stroke-width="3"/>
+
+  <!-- Body (breathing) -->
+  <ellipse class="breathing" cx="100" cy="140" rx="45" ry="33" fill="#d4b06a" stroke="#8b7332" stroke-width="1.5"/>
+
+  <!-- Head -->
+  <circle cx="100" cy="90" r="35" fill="#dfc080" stroke="#8b7332" stroke-width="1.5"/>
+
+  <!-- Ears (floppy, relaxed) -->
+  <path d="M72 72 L55 55 L65 78" fill="#c8a45c" stroke="#8b7332" stroke-width="1.5"/>
+  <path d="M128 72 L145 55 L135 78" fill="#c8a45c" stroke="#8b7332" stroke-width="1.5"/>
+
+  <!-- Eyes (closed, sleeping) -->
+  <path d="M80 86 Q87 82 94 86" fill="none" stroke="#5a4020" stroke-width="2" stroke-linecap="round"/>
+  <path d="M106 86 Q113 82 120 86" fill="none" stroke="#5a4020" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Peaceful smile -->
+  <path d="M90 100 Q100 107 110 100" fill="none" stroke="#5a4020" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Nose -->
+  <ellipse cx="100" cy="95" rx="4" ry="3" fill="#555"/>
+
+  <!-- Zzz -->
+  <text class="zzz zzz-1" x="135" y="70" font-family="serif" font-size="14" font-style="italic" fill="#8888cc">z</text>
+  <text class="zzz zzz-2" x="148" y="55" font-family="serif" font-size="17" font-style="italic" fill="#8888cc">z</text>
+  <text class="zzz zzz-3" x="158" y="38" font-family="serif" font-size="20" font-style="italic" fill="#8888cc">z</text>
+
+  <!-- Sparkles around halo -->
+  <circle class="sparkle" cx="70" cy="42" r="2" fill="#ffd700" style="animation-delay: 0s"/>
+  <circle class="sparkle" cx="130" cy="42" r="2" fill="#ffd700" style="animation-delay: 0.5s"/>
+  <circle class="sparkle" cx="100" cy="35" r="1.5" fill="#ffd700" style="animation-delay: 1s"/>
+
+  <!-- Tail (resting) -->
+  <path d="M145 135 Q160 125 155 115" fill="none" stroke="#c8a45c" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Front legs (tucked in) -->
+  <ellipse cx="85" cy="172" rx="8" ry="5" fill="#c8a45c" stroke="#8b7332" stroke-width="1"/>
+  <ellipse cx="115" cy="172" rx="8" ry="5" fill="#c8a45c" stroke="#8b7332" stroke-width="1"/>
+</svg>

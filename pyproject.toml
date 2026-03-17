@@ -14,6 +14,9 @@ dependencies = [
     "notion-client>=2.2",
     "pydantic-settings>=2.5",
     "soundfile>=0.12",
+    "flask>=3.0",
+    "gunicorn>=22.0",
+    "anthropic>=0.40",
 ]
 
 [project.optional-dependencies]

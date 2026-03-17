@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero">
+    <div class="eddie-image-container">
+        {% if mood == "devil" %}
+            {% include "eddie-devil.svg" %}
+        {% elif mood == "angel" %}
+            {% include "eddie-angel.svg" %}
+        {% else %}
+            {% include "eddie-angel.svg" %}
+        {% endif %}
+    </div>
+
+    <h1 class="hero-title">
+        {% if mood == "devil" %}
+            Eddie is being... <em>spirited</em> right now
+        {% elif mood == "angel" %}
+            Eddie is a good boy
+        {% else %}
+            Eddie is keeping watch
+        {% endif %}
+    </h1>
+
+    <p class="assessment">{{ assessment }}</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ summary.total_episodes }}</div>
+        <div class="stat-label">Bark Episodes Today</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ summary.total_bark_minutes }}</div>
+        <div class="stat-label">Minutes Barking</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ bark_this_hour }}</div>
+        <div class="stat-label">Bark Min (This Hour)</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">
+            {% if summary.peak_hour is not none %}
+                {{ "%02d:00"|format(summary.peak_hour) }}
+            {% else %}
+                --
+            {% endif %}
+        </div>
+        <div class="stat-label">Peak Hour</div>
+    </div>
+</div>
+
+{% if summary.hourly_bark_minutes %}
+<div class="chart-section">
+    <h2>Today's Bark Activity</h2>
+    <div class="hourly-chart">
+        {% for hour in range(7, 21) %}
+            {% set minutes = summary.hourly_bark_minutes.get(hour, 0) %}
+            {% set max_min = summary.hourly_bark_minutes.values()|max if summary.hourly_bark_minutes else 1 %}
+            {% set height = (minutes / max_min * 100) if max_min > 0 else 0 %}
+            <div class="bar-container">
+                <div class="bar {% if minutes > 2 %}bar-hot{% elif minutes > 0.5 %}bar-warm{% else %}bar-cool{% endif %}"
+                     style="height: {{ height }}%"
+                     title="{{ '%.1f'|format(minutes) }} min">
+                </div>
+                <div class="bar-label">{{ "%02d"|format(hour) }}</div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

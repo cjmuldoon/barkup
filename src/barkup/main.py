@@ -53,12 +53,14 @@ def cleanup_old_clips(clip_dir: str = "clips"):
 class BarkupOrchestrator:
     def __init__(self):
         from barkup.bark_classifier import BarkClassifier
+        from barkup.db import BarkDatabase
         from barkup.notion_logger import NotionLogger
         from barkup.telegram_bot import TelegramBot
 
         self._sdm = SDMClient()
         self._classifier = BarkClassifier()
         self._notion = NotionLogger()
+        self._db = BarkDatabase()
         self._telegram = TelegramBot(
             on_intervention=self._handle_intervention,
             notion_logger=self._notion,
@@ -80,11 +82,20 @@ class BarkupOrchestrator:
         self._file_cache: dict[str, dict[str, str]] = {}
         self._file_cache_lock = threading.Lock()
 
+        # Notion page_id -> DB row_id mapping for dual-write
+        self._notion_to_db: dict[str, int] = {}
+        self._notion_db_lock = threading.Lock()
+
         # Nest event cross-referencing: recent Nest Sound events keyed by device_id
         # Each entry: (timestamp, event_type, snapshot_path, nest_link, page_id)
         self._nest_events: dict[str, list[dict]] = {}
         self._nest_lock = threading.Lock()
         self._nest_event_window = 60  # seconds to match Nest event to YAMNet episode
+
+    def _map_notion_db(self, page_id: str, db_id: int):
+        """Track the mapping from Notion page ID to DB row ID."""
+        with self._notion_db_lock:
+            self._notion_to_db[page_id] = db_id
 
     def _cache_files(self, page_id: str, clip_path: str | None = None,
                      video_path: str | None = None, snapshot_path: str | None = None):
@@ -109,6 +120,10 @@ class BarkupOrchestrator:
         """Handle intervention reply from Telegram."""
         try:
             self._notion.update_intervention(page_id, fields)
+            # Also update DB if we have a mapped row ID
+            db_id = self._notion_to_db.get(page_id)
+            if db_id:
+                self._db.update_intervention(db_id, fields)
             logger.info("Updated intervention for page %s: %s", page_id, fields)
         except Exception:
             logger.exception("Failed to update intervention")
@@ -266,6 +281,14 @@ class BarkupOrchestrator:
                                 nest_link=event["nest_link"],
                                 snapshot_path=event["snapshot_path"],
                             )
+                            db_id = self._db.log_nest_event(
+                                timestamp=event["timestamp"],
+                                event_type=event["event_type"],
+                                camera_name=event["camera_name"],
+                                nest_link=event["nest_link"],
+                                snapshot_path=event["snapshot_path"],
+                            )
+                            self._map_notion_db(page_id, db_id)
                             logger.info("Nest-only event logged (YAMNet didn't confirm): %s", page_id)
                         except Exception:
                             logger.exception("Failed to log Nest-only event")
@@ -374,6 +397,9 @@ class BarkupOrchestrator:
                             if nest_event.get("page_id"):
                                 # Upgrade existing Nest-only page
                                 self._notion.upgrade_to_both(nest_event["page_id"], episode)
+                                db_id = self._notion_to_db.get(nest_event["page_id"])
+                                if db_id:
+                                    self._db.upgrade_to_both(db_id, episode)
                                 self._cache_files(nest_event["page_id"],
                                                   clip_path=clip_path, video_path=video_path,
                                                   snapshot_path=snapshot_path)
@@ -384,8 +410,10 @@ class BarkupOrchestrator:
                         else:
                             episode.source = DetectionSource.YAMNET
 
-                        # Log to Notion + Telegram
+                        # Log to Notion + DB + Telegram
                         page_id = self._notion.log_episode(episode)
+                        db_id = self._db.log_episode(episode)
+                        self._map_notion_db(page_id, db_id)
                         self._cache_files(page_id, clip_path=clip_path,
                                           video_path=video_path, snapshot_path=snapshot_path)
 
@@ -396,11 +424,13 @@ class BarkupOrchestrator:
                         auto_dismissed = False
                         if episode.peak_confidence < settings.confidence_dismiss_below:
                             self._notion.update_bark_type(page_id, "Not Bark")
+                            self._db.update_bark_type(db_id, "Not Bark")
                             auto_dismissed = True
                             logger.info("Auto-dismissed (confidence %.0f%% < %.0f%%)",
                                         episode.peak_confidence * 100, settings.confidence_dismiss_below * 100)
                         elif episode.peak_confidence >= confirm_threshold:
                             self._notion.update_bark_type(page_id, "Bark")
+                            self._db.update_bark_type(db_id, "Bark")
                             logger.info("Auto-confirmed (confidence %.0f%% >= %.0f%%%s)",
                                         episode.peak_confidence * 100, confirm_threshold * 100,
                                         ", owner not home" if self._telegram.owner_home is False else "")
@@ -408,11 +438,13 @@ class BarkupOrchestrator:
                         # Auto-mark as home if owner has indicated they're home
                         if self._telegram.owner_home is True:
                             self._notion.update_intervention(page_id, {"was_home": True})
+                            self._db.update_intervention(db_id, {"was_home": True})
                         # Skip notification for auto-dismissed episodes
                         if self._telegram.enabled and not auto_dismissed:
                             msg_id = self._telegram.send_bark_notification(episode, page_id)
                             if msg_id and page_id:
                                 self._notion.set_telegram_message_id(page_id, msg_id)
+                                self._db.set_telegram_message_id(db_id, msg_id)
 
                         clip_path = None
                         video_path = None
@@ -478,6 +510,8 @@ class BarkupOrchestrator:
                         remaining.snapshot_url = snapshot_path
 
                     page_id = self._notion.log_episode(remaining)
+                    db_id = self._db.log_episode(remaining)
+                    self._map_notion_db(page_id, db_id)
                     self._cache_files(page_id, clip_path=clip_path,
                                       video_path=video_path, snapshot_path=snapshot_path)
 
@@ -486,16 +520,20 @@ class BarkupOrchestrator:
                     auto_dismissed = False
                     if remaining.peak_confidence < settings.confidence_dismiss_below:
                         self._notion.update_bark_type(page_id, "Not Bark")
+                        self._db.update_bark_type(db_id, "Not Bark")
                         auto_dismissed = True
                     elif remaining.peak_confidence >= confirm_threshold:
                         self._notion.update_bark_type(page_id, "Bark")
+                        self._db.update_bark_type(db_id, "Bark")
 
                     if self._telegram.owner_home is True:
                         self._notion.update_intervention(page_id, {"was_home": True})
+                        self._db.update_intervention(db_id, {"was_home": True})
                     if self._telegram.enabled and not auto_dismissed:
                         msg_id = self._telegram.send_bark_notification(remaining, page_id)
                         if msg_id and page_id:
                             self._notion.set_telegram_message_id(page_id, msg_id)
+                            self._db.set_telegram_message_id(db_id, msg_id)
 
                 # Don't release server-side stream if we're about to reconnect
                 will_reconnect = self._monitor_active.is_set() and not self._shutdown.is_set()
@@ -576,6 +614,8 @@ class BarkupOrchestrator:
             self._file_cache.clear()
         with self._nest_lock:
             self._nest_events.clear()
+        with self._notion_db_lock:
+            self._notion_to_db.clear()
         logger.info("Caches cleared for fresh monitoring window")
 
         self._monitor_active.set()
@@ -670,6 +710,14 @@ class BarkupOrchestrator:
         pubsub_thread = threading.Thread(target=listener.start, daemon=True, name="pubsub")
         pubsub_thread.start()
         logger.info("Pub/Sub listener started (snapshots + cross-referencing)")
+
+        # Start Flask web server in background
+        from barkup.web.app import start_web
+        web_thread = threading.Thread(
+            target=start_web, args=(self._db,), daemon=True, name="web"
+        )
+        web_thread.start()
+        logger.info("Web server started on port %d", settings.web_port)
 
         # Run monitor schedule (blocks until shutdown)
         self._run_monitor_schedule()
