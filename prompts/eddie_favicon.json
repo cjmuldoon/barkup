@@ -1,0 +1,12 @@
+{
+    "image_input": [
+        "https://eddieisagoodboy.com/static/eddie_reference.jpg"
+    ],
+    "api_parameters": {
+        "aspect_ratio": "1:1",
+        "resolution": "1K",
+        "output_format": "png"
+    },
+    "scene": "A tight close-up portrait of a golden cavoodle dog's face, identical to the reference — same wavy golden-caramel fur, same dark round eyes, same brown nose. The portrait is cropped tightly to just the face, centered and symmetrical. The dog looks directly at camera with a friendly, warm expression. Clean solid background in dark navy (#0f1117) to work as a website favicon. The fur is sharply detailed at this close crop — individual curly strands visible, natural color variation. The lighting is soft and even, no harsh shadows. Shot with an 85mm f/2 lens, ISO 200. The image should read clearly even when scaled down to 32x32 pixels — the face fills the frame with minimal background.",
+    "negative_prompt": "full body, sitting, standing, legs visible, collar visible, ground visible, garden, concrete, cluttered background, text, watermark, cartoon, illustration, blurry, low detail, multiple dogs, extra features"
+}

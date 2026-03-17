@@ -4,12 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Eddie Is A Good Boy{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="navbar">
-        <a href="{{ url_for('index') }}" class="nav-brand">eddieisagoodboy.com</a>
+        <a href="{{ url_for('index') }}" class="nav-brand">
+            {% if mood == "devil" %}
+                <img src="{{ url_for('static', filename='eddie_logo_devil_t.png') }}" alt="" class="nav-logo">
+                <span>eddie is <span class="not-stamp">NOT</span> a good boy .com</span>
+            {% else %}
+                <img src="{{ url_for('static', filename='eddie_logo_angel_t.png') }}" alt="" class="nav-logo">
+                <span>eddieisagoodboy.com</span>
+            {% endif %}
+        </a>
         <div class="nav-links">
             {% if session.get('logged_in') %}
                 <a href="{{ url_for('dashboard') }}">Dashboard</a>

@@ -49,11 +49,33 @@ body {
     backdrop-filter: blur(10px);
 }
 .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--accent);
     text-decoration: none;
     letter-spacing: -0.02em;
+}
+.nav-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.not-stamp {
+    display: inline-block;
+    color: #ee2222;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 1rem;
+    transform: rotate(-4deg);
+    text-decoration: underline;
+    text-decoration-color: #ee2222;
+    text-decoration-thickness: 2px;
+    margin: 0 0.15rem;
+    letter-spacing: 0.02em;
 }
 .nav-links a {
     color: var(--text-muted);

@@ -1,0 +1,12 @@
+{
+    "image_input": [
+        "https://eddieisagoodboy.com/static/eddie_reference.jpg"
+    ],
+    "api_parameters": {
+        "aspect_ratio": "1:1",
+        "resolution": "1K",
+        "output_format": "png"
+    },
+    "scene": "A close-up portrait of a golden cavoodle dog's face, identical to the reference — same wavy golden-caramel fur, same dark round eyes, same brown nose. The dog has a peaceful, content expression with half-closed blissful eyes. A small glowing golden halo floats above his head. The background is a soft gradient from dark navy (#0f1117) at the edges to a subtle warm golden glow behind the dog's head. The fur catches soft golden light. This is a logo/avatar image — clean composition, face centered, reads well at small sizes. Shot with 85mm f/2, ISO 200, soft even lighting.",
+    "negative_prompt": "full body, sitting, standing, legs, collar, ground, garden, concrete, text, watermark, cartoon, illustration, blurry, clouds, elaborate scene, fire, horns, devil, barking, open mouth"
+}

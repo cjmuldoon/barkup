@@ -65,8 +65,24 @@ def create_app(db=None):
         return decorated
 
     @app.context_processor
-    def inject_now():
-        return {"now": datetime.now(ZoneInfo(settings.timezone))}
+    def inject_globals():
+        tz = ZoneInfo(settings.timezone)
+        now = datetime.now(tz)
+        current_hour = now.hour
+
+        # Compute mood for navbar/favicon across all pages
+        db = get_db()
+        summary = db.get_daily_summary()
+        hourly = summary.get("hourly_bark_minutes", {})
+        bark_this_hour = hourly.get(current_hour, 0)
+        monitoring_ended = current_hour >= settings.monitor_end_hour
+        if monitoring_ended:
+            total_episodes = summary.get("total_episodes", 0)
+            mood = "devil" if total_episodes > 15 else ("angel" if total_episodes <= 5 else "neutral")
+        else:
+            mood = "devil" if bark_this_hour > 2 else ("angel" if bark_this_hour < 0.5 else "neutral")
+
+        return {"now": now, "mood": mood}
 
     # --- Public routes ---
 
@@ -143,12 +159,11 @@ def create_app(db=None):
         db = get_db()
         clip_path = db.get_random_clip_path()
         if clip_path:
-            # Handle relative paths (e.g. clips/bark_...)
             p = Path(clip_path)
             if not p.is_absolute():
-                p = Path(settings.clip_storage_path).parent / clip_path
+                p = p.resolve()
             if p.exists():
-                return send_file(p, mimetype="audio/wav")
+                return send_file(str(p), mimetype="audio/wav")
         abort(404)
 
     # --- Auth routes ---

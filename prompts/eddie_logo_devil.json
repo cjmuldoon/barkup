@@ -1,0 +1,12 @@
+{
+    "image_input": [
+        "https://eddieisagoodboy.com/static/eddie_reference.jpg"
+    ],
+    "api_parameters": {
+        "aspect_ratio": "1:1",
+        "resolution": "1K",
+        "output_format": "png"
+    },
+    "scene": "A close-up portrait of a golden cavoodle dog's face, identical to the reference — same wavy golden-caramel fur, same dark round eyes, same brown nose. The dog has a cheeky mischievous expression with mouth slightly open showing teeth in a playful bark. Two small glossy red devil horns protrude from the top of his head through the curly fur. The background is a soft gradient from dark navy (#0f1117) at the edges to a subtle warm orange-red glow behind the dog's head. A few tiny floating embers. The fur catches warm amber side-lighting. This is a logo/avatar image — clean composition, face centered, reads well at small sizes. Shot with 85mm f/2, ISO 400, dramatic warm lighting.",
+    "negative_prompt": "full body, sitting, standing, legs, collar, ground, garden, concrete, text, watermark, cartoon, illustration, blurry, clouds, halo, angel, sleeping, closed eyes, scary, horror, gore"
+}
