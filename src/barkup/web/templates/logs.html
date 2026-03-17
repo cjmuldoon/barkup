@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Logs - Eddie Is A Good Boy{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>System Logs</h1>
+    <div class="dashboard-nav">
+        <a href="{{ url_for('admin_health') }}" class="btn-config">Health</a>
+        <a href="{{ url_for('admin_config') }}" class="btn-config">Config</a>
+        <a href="{{ url_for('dashboard') }}" class="btn-config">Dashboard</a>
+    </div>
+</div>
+
+<form class="log-filters" method="GET">
+    <select name="level" onchange="this.form.submit()">
+        <option value="">All Levels</option>
+        <option value="DEBUG" {% if level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+        <option value="INFO" {% if level == 'INFO' %}selected{% endif %}>INFO</option>
+        <option value="WARNING" {% if level == 'WARNING' %}selected{% endif %}>WARNING</option>
+        <option value="ERROR" {% if level == 'ERROR' %}selected{% endif %}>ERROR</option>
+    </select>
+    <input type="text" name="search" value="{{ search }}" placeholder="Search logs..." class="log-search">
+    <button type="submit" class="btn-config">Filter</button>
+    <a href="{{ url_for('admin_logs') }}" class="btn-config">Clear</a>
+</form>
+
+<div class="log-container">
+    <div class="log-count">{{ lines|length }} log entries</div>
+    <div class="log-output" id="log-output">
+        {% for line in lines %}
+        <div class="log-line {% if '[ERROR]' in line %}log-error{% elif '[WARNING]' in line %}log-warn{% elif '[DEBUG]' in line %}log-debug{% endif %}">{{ line }}</div>
+        {% else %}
+        <div class="log-line log-empty">No log entries{% if level or search %} matching filter{% endif %}</div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+// Auto-scroll to bottom
+const output = document.getElementById('log-output');
+output.scrollTop = output.scrollHeight;
+
+// Auto-refresh every 10 seconds
+setTimeout(() => location.reload(), 10000);
+</script>
+{% endblock %}

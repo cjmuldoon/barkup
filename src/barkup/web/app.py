@@ -1,5 +1,6 @@
 """Flask web application for eddieisagoodboy.com."""
 
+import collections
 import hashlib
 import logging
 from datetime import datetime, timedelta
@@ -16,6 +17,27 @@ from barkup.config import settings
 logger = logging.getLogger(__name__)
 
 _db = None
+_health_callback = None
+
+# Ring buffer log handler — keeps last 500 log lines in memory
+_log_buffer = collections.deque(maxlen=500)
+
+
+class BufferLogHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            _log_buffer.append(self.format(record))
+        except Exception:
+            pass
+
+
+def _install_log_handler():
+    handler = BufferLogHandler()
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    ))
+    logging.getLogger().addHandler(handler)
 
 
 def get_db():
@@ -192,6 +214,48 @@ def create_app(db=None):
             abort(404)
         return send_file(file_path)
 
+    @app.route("/admin/health")
+    @login_required
+    def admin_health():
+        health = {}
+        if _health_callback:
+            try:
+                health = _health_callback()
+            except Exception:
+                health = {"error": "Failed to gather health metrics"}
+        return render_template("health.html", health=health)
+
+    @app.route("/admin/logs")
+    @login_required
+    def admin_logs():
+        lines = list(_log_buffer)
+        # Optional filter
+        level = request.args.get("level", "").upper()
+        search = request.args.get("search", "")
+        if level:
+            lines = [l for l in lines if f"[{level}]" in l]
+        if search:
+            lines = [l for l in lines if search.lower() in l.lower()]
+        return render_template("logs.html", lines=lines, level=level, search=search)
+
+    @app.route("/api/health")
+    @login_required
+    def api_health():
+        if _health_callback:
+            health = _health_callback()
+            # Convert measure_since to string for JSON
+            if health.get("measure_since"):
+                health["measure_since"] = health["measure_since"].isoformat()
+            return health
+        return {"error": "Health callback not available"}
+
+    @app.route("/api/logs")
+    @login_required
+    def api_logs():
+        n = request.args.get("n", 100, type=int)
+        lines = list(_log_buffer)[-n:]
+        return {"lines": lines}
+
     @app.route("/api/episodes")
     @login_required
     def api_episodes():
@@ -222,8 +286,11 @@ def create_app(db=None):
     return app
 
 
-def start_web(db, host="0.0.0.0", port=None):
+def start_web(db, health_callback=None, host="0.0.0.0", port=None):
     """Start the Flask web server in a thread-compatible way."""
+    global _health_callback
+    _health_callback = health_callback
+    _install_log_handler()
     port = port or settings.web_port
     app = create_app(db)
     _ensure_admin_user(db)

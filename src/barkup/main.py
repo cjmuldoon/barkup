@@ -735,7 +735,9 @@ class BarkupOrchestrator:
         # Start Flask web server in background
         from barkup.web.app import start_web
         web_thread = threading.Thread(
-            target=start_web, args=(self._db,), daemon=True, name="web"
+            target=start_web, args=(self._db,),
+            kwargs={"health_callback": self._gather_health},
+            daemon=True, name="web",
         )
         web_thread.start()
         logger.info("Web server started on port %d", settings.web_port)

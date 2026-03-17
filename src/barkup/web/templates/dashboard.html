@@ -6,6 +6,8 @@
 <div class="dashboard-header">
     <h1>Eddie's Dashboard</h1>
     <div class="dashboard-nav">
+        <a href="{{ url_for('admin_health') }}" class="btn-config">Health</a>
+        <a href="{{ url_for('admin_logs') }}" class="btn-config">Logs</a>
         <a href="{{ url_for('admin_config') }}" class="btn-config">Config</a>
         <form class="date-picker" method="GET">
             <input type="date" name="date" value="{{ selected_date }}" onchange="this.form.submit()">

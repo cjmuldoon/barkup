@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Health - Eddie Is A Good Boy{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>System Health</h1>
+    <div class="dashboard-nav">
+        <a href="{{ url_for('admin_logs') }}" class="btn-config">Logs</a>
+        <a href="{{ url_for('admin_config') }}" class="btn-config">Config</a>
+        <a href="{{ url_for('dashboard') }}" class="btn-config">Dashboard</a>
+    </div>
+</div>
+
+{% if health.get('error') %}
+<div class="error-msg">{{ health.error }}</div>
+{% else %}
+<div class="config-grid">
+    <div class="config-section">
+        <h3>Processing</h3>
+        <div class="config-row">
+            <span class="config-key">Frame Processing</span>
+            <span class="config-val">
+                <span class="status-dot {% if health.processing_pct > 90 %}status-on{% elif health.processing_pct > 50 %}status-warn{% else %}status-off{% endif %}"></span>
+                {{ "%.1f"|format(health.processing_pct) }}%
+            </span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Frames Processed</span>
+            <span class="config-val mono">{{ health.frames_processed }} / {{ health.frames_expected }}</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Monitor Uptime</span>
+            <span class="config-val">{{ "%.1f"|format(health.uptime_hours) }} hours</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Measuring Since</span>
+            <span class="config-val">
+                {% if health.measure_since %}
+                    {{ health.measure_since.strftime('%H:%M:%S') }}
+                {% else %}
+                    Not started
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <div class="config-section">
+        <h3>Disk</h3>
+        <div class="config-row">
+            <span class="config-key">Disk Usage</span>
+            <span class="config-val">
+                {{ "%.0f"|format(health.disk_used_mb) }} / {{ "%.0f"|format(health.disk_total_mb) }} MB
+            </span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Disk Free</span>
+            <span class="config-val">
+                {% set free_pct = ((health.disk_total_mb - health.disk_used_mb) / health.disk_total_mb * 100) %}
+                <span class="status-dot {% if free_pct > 20 %}status-on{% elif free_pct > 10 %}status-warn{% else %}status-off{% endif %}"></span>
+                {{ "%.1f"|format(free_pct) }}%
+            </span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Clip Files</span>
+            <span class="config-val">{{ health.clip_count }} files ({{ "%.1f"|format(health.clip_size_mb) }} MB)</span>
+        </div>
+    </div>
+</div>
+
+<div class="health-bar-section">
+    <h3>Processing Rate</h3>
+    <div class="progress-bar-container">
+        <div class="progress-bar {% if health.processing_pct > 90 %}bar-good{% elif health.processing_pct > 50 %}bar-warn{% else %}bar-bad{% endif %}"
+             style="width: {{ health.processing_pct|min(100) }}%">
+            {{ "%.1f"|format(health.processing_pct) }}%
+        </div>
+    </div>
+</div>
+
+<div class="health-bar-section">
+    <h3>Disk Usage</h3>
+    {% set disk_pct = (health.disk_used_mb / health.disk_total_mb * 100) %}
+    <div class="progress-bar-container">
+        <div class="progress-bar {% if disk_pct < 70 %}bar-good{% elif disk_pct < 85 %}bar-warn{% else %}bar-bad{% endif %}"
+             style="width: {{ disk_pct }}%">
+            {{ "%.0f"|format(disk_pct) }}%
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Auto-refresh health every 30 seconds
+setTimeout(() => location.reload(), 30000);
+</script>
+{% endblock %}
