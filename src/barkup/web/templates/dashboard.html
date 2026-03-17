@@ -63,16 +63,29 @@
                     <th>Time</th>
                     <th>Type</th>
                     <th>Duration</th>
-                    <th>Bark Time</th>
+                    <th class="hide-mobile">Bark Time</th>
                     <th>Confidence</th>
-                    <th>Reason</th>
-                    <th>Source</th>
-                    <th>Media</th>
+                    <th class="hide-mobile">Reason</th>
+                    <th class="hide-mobile">Source</th>
+                    <th class="media-col">Media</th>
                 </tr>
             </thead>
             <tbody>
                 {% for ep in episodes %}
-                <tr class="{% if ep.bark_type == 'Not Bark' %}row-dismissed{% elif ep.bark_type == 'Unconfirmed' %}row-unconfirmed{% endif %}">
+                {% set clip_name = ep.clip_path.split('/')[-1] if ep.clip_path else '' %}
+                {% set video_name = clip_name.replace('.wav', '.mp4') if clip_name else '' %}
+                {% set snap_name = ep.snapshot_path.split('/')[-1] if ep.snapshot_path else '' %}
+                {% set has_media = ep.clip_path or ep.nest_link or ep.snapshot_path %}
+                <tr class="ep-row {% if ep.bark_type == 'Not Bark' %}row-dismissed{% elif ep.bark_type == 'Unconfirmed' %}row-unconfirmed{% endif %}"
+                    {% if has_media %}
+                    data-audio="{{ url_for('serve_clip', filename=clip_name) if clip_name else '' }}"
+                    data-video="{{ url_for('serve_clip', filename=video_name) if video_name else '' }}"
+                    data-live="{{ ep.nest_link or '' }}"
+                    data-snap="{{ url_for('serve_clip', filename=snap_name) if snap_name else '' }}"
+                    data-time="{{ ep.start_time.strftime('%H:%M') }}"
+                    data-type="{{ ep.bark_type }}"
+                    onclick="showMediaPopup(this)"
+                    {% endif %}>
                     <td>{{ ep.start_time.strftime('%H:%M') }}</td>
                     <td>
                         <span class="badge badge-{{ ep.bark_type|lower|replace(' ', '-') }}">
@@ -80,25 +93,22 @@
                         </span>
                     </td>
                     <td>{{ "%.0f"|format(ep.duration_seconds) }}s</td>
-                    <td>{{ "%.1f"|format(ep.bark_time_seconds) }}s</td>
+                    <td class="hide-mobile">{{ "%.1f"|format(ep.bark_time_seconds) }}s</td>
                     <td>{{ "%.0f"|format(ep.confidence * 100) }}%</td>
-                    <td>{{ ep.reason }}</td>
-                    <td>{{ ep.source }}</td>
-                    <td class="media-links">
-                        {% if ep.clip_path %}
-                            {% set clip_name = ep.clip_path.split('/')[-1] %}
-                            <a href="{{ url_for('serve_clip', filename=clip_name) }}" title="Audio clip" target="_blank">Audio</a>
+                    <td class="hide-mobile">{{ ep.reason }}</td>
+                    <td class="hide-mobile">{{ ep.source }}</td>
+                    <td class="media-links media-col">
+                        {% if clip_name %}
+                            <a href="{{ url_for('serve_clip', filename=clip_name) }}" title="Audio clip" target="_blank" onclick="event.stopPropagation()">Audio</a>
                         {% endif %}
-                        {% if ep.get('video_path') or (ep.clip_path and ep.clip_path.replace('.wav', '.mp4')) %}
-                            {% set video_name = ep.clip_path.replace('.wav', '.mp4').split('/')[-1] if ep.clip_path else '' %}
-                            <a href="{{ url_for('serve_clip', filename=video_name) }}" title="Video clip" target="_blank">Video</a>
+                        {% if video_name %}
+                            <a href="{{ url_for('serve_clip', filename=video_name) }}" title="Video clip" target="_blank" onclick="event.stopPropagation()">Video</a>
                         {% endif %}
                         {% if ep.nest_link %}
-                            <a href="{{ ep.nest_link }}" title="Nest live feed" target="_blank" rel="noopener">Live</a>
+                            <a href="{{ ep.nest_link }}" title="Nest live feed" target="_blank" rel="noopener" onclick="event.stopPropagation()">Live</a>
                         {% endif %}
-                        {% if ep.snapshot_path %}
-                            {% set snap_name = ep.snapshot_path.split('/')[-1] %}
-                            <a href="{{ url_for('serve_clip', filename=snap_name) }}" title="Snapshot" target="_blank">Snap</a>
+                        {% if snap_name %}
+                            <a href="{{ url_for('serve_clip', filename=snap_name) }}" title="Snapshot" target="_blank" onclick="event.stopPropagation()">Snap</a>
                         {% endif %}
                     </td>
                 </tr>
@@ -109,4 +119,59 @@
         </table>
     </div>
 </div>
+
+<!-- Mobile media popup -->
+<div class="media-popup-overlay" id="media-popup" onclick="hideMediaPopup(event)">
+    <div class="media-popup">
+        <div class="media-popup-title" id="popup-title"></div>
+        <div class="media-popup-actions" id="popup-actions"></div>
+    </div>
+</div>
+
+<script>
+function showMediaPopup(row) {
+    // Only show popup on mobile
+    if (window.innerWidth > 600) return;
+
+    const popup = document.getElementById('media-popup');
+    const title = document.getElementById('popup-title');
+    const actions = document.getElementById('popup-actions');
+
+    title.textContent = row.dataset.time + ' — ' + row.dataset.type;
+    actions.innerHTML = '';
+
+    const links = [
+        { url: row.dataset.audio, label: 'Play Audio', icon: '🔊' },
+        { url: row.dataset.video, label: 'Watch Video', icon: '🎬' },
+        { url: row.dataset.live,  label: 'Nest Live Feed', icon: '📷' },
+        { url: row.dataset.snap,  label: 'View Snapshot', icon: '📸' },
+    ];
+
+    let hasAny = false;
+    links.forEach(function(link) {
+        if (link.url) {
+            hasAny = true;
+            const a = document.createElement('a');
+            a.href = link.url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.className = 'popup-btn';
+            a.textContent = link.label;
+            actions.appendChild(a);
+        }
+    });
+
+    if (!hasAny) {
+        actions.innerHTML = '<div class="popup-empty">No media available</div>';
+    }
+
+    popup.classList.add('active');
+}
+
+function hideMediaPopup(event) {
+    if (event.target === document.getElementById('media-popup')) {
+        document.getElementById('media-popup').classList.remove('active');
+    }
+}
+</script>
 {% endblock %}
