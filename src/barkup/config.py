@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Notion
     notion_api_key: str
     notion_database_id: str
+    notion_enabled: bool = True  # Set False to stop writing to Notion
 
     # Bark detection tuning
     bark_confidence_threshold: float = 0.45

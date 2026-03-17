@@ -2,18 +2,19 @@
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import (Flask, abort, redirect, render_template, request,
+                   send_file, session, url_for)
 
 from barkup.assessment import generate_assessment
 from barkup.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Database instance — set by start_web() before app runs
 _db = None
 
 
@@ -51,15 +52,15 @@ def create_app(db=None):
     def index():
         db = get_db()
         summary = db.get_daily_summary()
+        all_time = db.get_all_time_stats()
+        weekly = db.get_weekly_daily_totals(weeks=2)
         assessment = generate_assessment(summary)
 
-        # Determine Eddie's mood based on last hour's barking
         tz = ZoneInfo(settings.timezone)
         current_hour = datetime.now(tz).hour
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
 
-        # Mood thresholds: >2 min barking in current hour = devil, <0.5 = angel
         if bark_this_hour > 2:
             mood = "devil"
         elif bark_this_hour < 0.5:
@@ -70,6 +71,8 @@ def create_app(db=None):
         return render_template(
             "public.html",
             summary=summary,
+            all_time=all_time,
+            weekly=weekly,
             assessment=assessment,
             mood=mood,
             bark_this_hour=round(bark_this_hour, 1),
@@ -79,18 +82,28 @@ def create_app(db=None):
     def api_status():
         db = get_db()
         summary = db.get_daily_summary()
+        all_time = db.get_all_time_stats()
         tz = ZoneInfo(settings.timezone)
         current_hour = datetime.now(tz).hour
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
 
         return {
-            "total_episodes": summary["total_episodes"],
-            "total_bark_minutes": summary["total_bark_minutes"],
+            "today_episodes": summary["total_episodes"],
+            "today_bark_minutes": summary["total_bark_minutes"],
+            "all_time_episodes": all_time["total_episodes"],
             "peak_hour": summary["peak_hour"],
             "bark_this_hour": round(bark_this_hour, 1),
             "mood": "devil" if bark_this_hour > 2 else ("angel" if bark_this_hour < 0.5 else "neutral"),
         }
+
+    @app.route("/api/random-clip")
+    def api_random_clip():
+        db = get_db()
+        clip_path = db.get_random_clip_path()
+        if clip_path and Path(clip_path).exists():
+            return send_file(clip_path, mimetype="audio/wav")
+        abort(404)
 
     # --- Auth routes ---
 
@@ -123,22 +136,61 @@ def create_app(db=None):
     @login_required
     def dashboard():
         db = get_db()
+        tz = ZoneInfo(settings.timezone)
         date = request.args.get("date")
-        if date:
-            summary = db.get_daily_summary(date)
-        else:
-            summary = db.get_daily_summary()
-            tz = ZoneInfo(settings.timezone)
+        if not date:
             date = datetime.now(tz).strftime("%Y-%m-%d")
 
-        recent = db.get_recent_episodes(50)
+        summary = db.get_daily_summary(date)
+        all_time = db.get_all_time_stats()
+        # Get episodes for the selected date (not just recent)
+        episodes = summary.get("episodes", [])
+        # Also get dismissed/unconfirmed for the full table
+        next_day = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        all_day = db.get_episodes_for_range(date, next_day)
 
         return render_template(
             "dashboard.html",
             summary=summary,
-            recent=recent,
+            all_time=all_time,
+            episodes=all_day,
             selected_date=date,
         )
+
+    @app.route("/admin/config")
+    @login_required
+    def admin_config():
+        return render_template(
+            "config.html",
+            settings={
+                "notion_enabled": settings.notion_enabled,
+                "bark_confidence_threshold": settings.bark_confidence_threshold,
+                "confidence_dismiss_below": settings.confidence_dismiss_below,
+                "confidence_confirm_above": settings.confidence_confirm_above,
+                "episode_cooldown_seconds": settings.episode_cooldown_seconds,
+                "monitor_start": f"{settings.monitor_start_hour:02d}:{settings.monitor_start_minute:02d}",
+                "monitor_end": f"{settings.monitor_end_hour:02d}:{settings.monitor_end_minute:02d}",
+                "timezone": settings.timezone,
+                "anthropic_api_key": "***" + settings.anthropic_api_key[-4:] if settings.anthropic_api_key else "Not set",
+                "telegram_enabled": bool(settings.telegram_bot_token),
+                "web_port": settings.web_port,
+                "db_path": settings.db_path,
+                "clip_storage_path": settings.clip_storage_path,
+            },
+        )
+
+    @app.route("/clips/<path:filename>")
+    @login_required
+    def serve_clip(filename):
+        """Serve clip files (audio/video/snapshots) from the clips directory."""
+        clip_dir = Path(settings.clip_storage_path).resolve()
+        file_path = (clip_dir / filename).resolve()
+        # Prevent path traversal
+        if not str(file_path).startswith(str(clip_dir)):
+            abort(403)
+        if not file_path.exists():
+            abort(404)
+        return send_file(file_path)
 
     @app.route("/api/episodes")
     @login_required
@@ -174,10 +226,7 @@ def start_web(db, host="0.0.0.0", port=None):
     """Start the Flask web server in a thread-compatible way."""
     port = port or settings.web_port
     app = create_app(db)
-
-    # Ensure default admin user exists
     _ensure_admin_user(db)
-
     logger.info("Starting web server on %s:%d", host, port)
     app.run(host=host, port=port, use_reloader=False, threaded=True)
 

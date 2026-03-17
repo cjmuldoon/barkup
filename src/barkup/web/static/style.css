@@ -336,6 +336,129 @@ body {
     text-align: center;
 }
 
+/* Section labels */
+.section-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 2rem;
+    margin-bottom: -0.5rem;
+    padding-left: 0.2rem;
+}
+
+/* Random bark button */
+.btn-clip {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.6rem 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font);
+}
+.btn-clip:hover { border-color: var(--accent); color: var(--accent); }
+.btn-clip:disabled { opacity: 0.5; cursor: default; }
+
+/* Daily chart */
+.daily-chart .bar-label { font-size: 0.55rem; }
+
+/* Dashboard nav */
+.dashboard-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+.btn-config {
+    padding: 0.45rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+.btn-config:hover { border-color: var(--accent); color: var(--text); }
+
+/* Media links in episodes table */
+.media-links {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.media-links a {
+    display: inline-block;
+    padding: 0.15rem 0.45rem;
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--accent);
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.7rem;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+.media-links a:hover { background: rgba(245, 158, 11, 0.25); }
+
+/* Config page */
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+.config-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.2rem;
+}
+.config-section h3 {
+    font-size: 0.85rem;
+    color: var(--accent);
+    margin-bottom: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.config-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.config-row:last-child { border-bottom: none; }
+.config-key {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.config-val {
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 500;
+}
+.config-val.mono { font-family: var(--mono); font-size: 0.75rem; }
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.4rem;
+}
+.status-on { background: var(--success); }
+.status-off { background: var(--danger); }
+.config-note {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-align: center;
+    margin-top: 1.5rem;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .container { padding: 1rem; }

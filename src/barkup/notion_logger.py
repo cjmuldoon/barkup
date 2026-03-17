@@ -270,16 +270,30 @@ class NotionLogger:
         )
 
     def _query_database(self, filter: dict, sorts: list | None = None, page_size: int = 100) -> list[dict]:
-        """Query the Notion database using the REST API directly."""
-        body = {"filter": filter, "page_size": page_size}
-        if sorts:
-            body["sorts"] = sorts
-        resp = self._http.post(
-            f"/databases/{self._database_id}/query",
-            json=body,
-        )
-        resp.raise_for_status()
-        return resp.json().get("results", [])
+        """Query the Notion database using the REST API directly, with pagination."""
+        all_results = []
+        start_cursor = None
+
+        while True:
+            body = {"filter": filter, "page_size": page_size}
+            if sorts:
+                body["sorts"] = sorts
+            if start_cursor:
+                body["start_cursor"] = start_cursor
+
+            resp = self._http.post(
+                f"/databases/{self._database_id}/query",
+                json=body,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            all_results.extend(data.get("results", []))
+
+            if not data.get("has_more"):
+                break
+            start_cursor = data.get("next_cursor")
+
+        return all_results
 
     def find_page_by_message_id(self, message_id: int) -> str | None:
         """Look up a Notion page by its Telegram message ID."""

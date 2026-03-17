@@ -5,15 +5,22 @@
 {% block content %}
 <div class="dashboard-header">
     <h1>Eddie's Dashboard</h1>
-    <form class="date-picker" method="GET">
-        <input type="date" name="date" value="{{ selected_date }}" onchange="this.form.submit()">
-    </form>
+    <div class="dashboard-nav">
+        <a href="{{ url_for('admin_config') }}" class="btn-config">Config</a>
+        <form class="date-picker" method="GET">
+            <input type="date" name="date" value="{{ selected_date }}" onchange="this.form.submit()">
+        </form>
+    </div>
 </div>
 
 <div class="stats-grid">
     <div class="stat-card">
+        <div class="stat-value">{{ all_time.total_episodes }}</div>
+        <div class="stat-label">All-Time Episodes</div>
+    </div>
+    <div class="stat-card">
         <div class="stat-value">{{ summary.total_episodes }}</div>
-        <div class="stat-label">Confirmed Episodes</div>
+        <div class="stat-label">{{ selected_date }} Episodes</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ summary.total_bark_minutes }}</div>
@@ -23,21 +30,11 @@
         <div class="stat-value">{{ summary.dismissed }}</div>
         <div class="stat-label">Auto-Dismissed</div>
     </div>
-    <div class="stat-card">
-        <div class="stat-value">
-            {% if summary.peak_hour is not none %}
-                {{ "%02d:00"|format(summary.peak_hour) }}
-            {% else %}
-                --
-            {% endif %}
-        </div>
-        <div class="stat-label">Peak Hour</div>
-    </div>
 </div>
 
 {% if summary.hourly_bark_minutes %}
 <div class="chart-section">
-    <h2>Hourly Breakdown</h2>
+    <h2>Hourly Breakdown — {{ selected_date }}</h2>
     <div class="hourly-chart">
         {% for hour in range(7, 21) %}
             {% set minutes = summary.hourly_bark_minutes.get(hour, 0) %}
@@ -56,7 +53,7 @@
 {% endif %}
 
 <div class="episodes-section">
-    <h2>Recent Episodes</h2>
+    <h2>Episodes — {{ selected_date }}</h2>
     <div class="table-wrapper">
         <table class="episodes-table">
             <thead>
@@ -68,10 +65,11 @@
                     <th>Confidence</th>
                     <th>Reason</th>
                     <th>Source</th>
+                    <th>Media</th>
                 </tr>
             </thead>
             <tbody>
-                {% for ep in recent %}
+                {% for ep in episodes %}
                 <tr class="{% if ep.bark_type == 'Not Bark' %}row-dismissed{% elif ep.bark_type == 'Unconfirmed' %}row-unconfirmed{% endif %}">
                     <td>{{ ep.start_time.strftime('%H:%M') }}</td>
                     <td>
@@ -84,9 +82,26 @@
                     <td>{{ "%.0f"|format(ep.confidence * 100) }}%</td>
                     <td>{{ ep.reason }}</td>
                     <td>{{ ep.source }}</td>
+                    <td class="media-links">
+                        {% if ep.clip_path %}
+                            {% set clip_name = ep.clip_path.split('/')[-1] %}
+                            <a href="{{ url_for('serve_clip', filename=clip_name) }}" title="Audio clip" target="_blank">Audio</a>
+                        {% endif %}
+                        {% if ep.get('video_path') or (ep.clip_path and ep.clip_path.replace('.wav', '.mp4')) %}
+                            {% set video_name = ep.clip_path.replace('.wav', '.mp4').split('/')[-1] if ep.clip_path else '' %}
+                            <a href="{{ url_for('serve_clip', filename=video_name) }}" title="Video clip" target="_blank">Video</a>
+                        {% endif %}
+                        {% if ep.nest_link %}
+                            <a href="{{ ep.nest_link }}" title="Nest live feed" target="_blank" rel="noopener">Live</a>
+                        {% endif %}
+                        {% if ep.snapshot_path %}
+                            {% set snap_name = ep.snapshot_path.split('/')[-1] %}
+                            <a href="{{ url_for('serve_clip', filename=snap_name) }}" title="Snapshot" target="_blank">Snap</a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" class="empty-state">No episodes recorded</td></tr>
+                <tr><td colspan="8" class="empty-state">No episodes on this date</td></tr>
                 {% endfor %}
             </tbody>
         </table>

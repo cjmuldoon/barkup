@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Config - Eddie Is A Good Boy{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>System Configuration</h1>
+    <a href="{{ url_for('dashboard') }}" class="btn-config">Back to Dashboard</a>
+</div>
+
+<div class="config-grid">
+    <div class="config-section">
+        <h3>Detection Settings</h3>
+        <div class="config-row">
+            <span class="config-key">Bark Confidence Threshold</span>
+            <span class="config-val">{{ settings.bark_confidence_threshold }}</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Auto-Dismiss Below</span>
+            <span class="config-val">{{ settings.confidence_dismiss_below }}</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Auto-Confirm Above</span>
+            <span class="config-val">{{ settings.confidence_confirm_above }}</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Episode Cooldown</span>
+            <span class="config-val">{{ settings.episode_cooldown_seconds }}s</span>
+        </div>
+    </div>
+
+    <div class="config-section">
+        <h3>Monitoring Schedule</h3>
+        <div class="config-row">
+            <span class="config-key">Monitor Window</span>
+            <span class="config-val">{{ settings.monitor_start }} — {{ settings.monitor_end }}</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Timezone</span>
+            <span class="config-val">{{ settings.timezone }}</span>
+        </div>
+    </div>
+
+    <div class="config-section">
+        <h3>Integrations</h3>
+        <div class="config-row">
+            <span class="config-key">Notion Logging</span>
+            <span class="config-val">
+                <span class="status-dot {% if settings.notion_enabled %}status-on{% else %}status-off{% endif %}"></span>
+                {{ "Enabled" if settings.notion_enabled else "Disabled" }}
+            </span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Telegram</span>
+            <span class="config-val">
+                <span class="status-dot {% if settings.telegram_enabled %}status-on{% else %}status-off{% endif %}"></span>
+                {{ "Enabled" if settings.telegram_enabled else "Disabled" }}
+            </span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Claude API</span>
+            <span class="config-val">{{ settings.anthropic_api_key }}</span>
+        </div>
+    </div>
+
+    <div class="config-section">
+        <h3>Storage</h3>
+        <div class="config-row">
+            <span class="config-key">Database Path</span>
+            <span class="config-val mono">{{ settings.db_path }}</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Clip Storage</span>
+            <span class="config-val mono">{{ settings.clip_storage_path }}</span>
+        </div>
+        <div class="config-row">
+            <span class="config-key">Web Port</span>
+            <span class="config-val">{{ settings.web_port }}</span>
+        </div>
+    </div>
+</div>
+
+<p class="config-note">Settings are configured via environment variables in the server's .env file. Changes require a container restart.</p>
+{% endblock %}

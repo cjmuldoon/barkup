@@ -5,8 +5,6 @@
     <div class="eddie-image-container">
         {% if mood == "devil" %}
             {% include "eddie-devil.svg" %}
-        {% elif mood == "angel" %}
-            {% include "eddie-angel.svg" %}
         {% else %}
             {% include "eddie-angel.svg" %}
         {% endif %}
@@ -23,12 +21,34 @@
     </h1>
 
     <p class="assessment">{{ assessment }}</p>
+
+    <button class="btn-clip" onclick="playRandomBark()" id="bark-btn">
+        Hear Eddie bark
+    </button>
+    <audio id="bark-audio" preload="none"></audio>
 </div>
 
+<div class="section-label">All Time</div>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ all_time.total_episodes }}</div>
+        <div class="stat-label">Total Bark Episodes</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ all_time.total_bark_minutes }}</div>
+        <div class="stat-label">Total Minutes Barking</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ all_time.active_days }}</div>
+        <div class="stat-label">Days Tracked</div>
+    </div>
+</div>
+
+<div class="section-label">Today</div>
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-value">{{ summary.total_episodes }}</div>
-        <div class="stat-label">Bark Episodes Today</div>
+        <div class="stat-label">Episodes Today</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ summary.total_bark_minutes }}</div>
@@ -69,4 +89,48 @@
     </div>
 </div>
 {% endif %}
+
+{% if weekly %}
+<div class="chart-section">
+    <h2>Last 14 Days</h2>
+    <div class="hourly-chart daily-chart">
+        {% set max_ep = weekly|map(attribute='episodes')|max if weekly else 1 %}
+        {% for day in weekly %}
+            <div class="bar-container">
+                <div class="bar {% if day.episodes > 10 %}bar-hot{% elif day.episodes > 3 %}bar-warm{% else %}bar-cool{% endif %}"
+                     style="height: {{ (day.episodes / max_ep * 100) if max_ep > 0 else 0 }}%"
+                     title="{{ day.date }}: {{ day.episodes }} episodes, {{ day.bark_minutes }} min">
+                </div>
+                <div class="bar-label">{{ day.date[8:] }}</div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+function playRandomBark() {
+    const btn = document.getElementById('bark-btn');
+    const audio = document.getElementById('bark-audio');
+    btn.textContent = 'Loading...';
+    btn.disabled = true;
+    audio.src = '/api/random-clip?' + Date.now();
+    audio.oncanplaythrough = function() {
+        btn.textContent = 'Woof!';
+        audio.play();
+    };
+    audio.onended = function() {
+        btn.textContent = 'Hear Eddie bark';
+        btn.disabled = false;
+    };
+    audio.onerror = function() {
+        btn.textContent = 'No clips yet';
+        setTimeout(() => {
+            btn.textContent = 'Hear Eddie bark';
+            btn.disabled = false;
+        }, 2000);
+    };
+    audio.load();
+}
+</script>
 {% endblock %}

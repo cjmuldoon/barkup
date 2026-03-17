@@ -376,6 +376,72 @@ class BarkDatabase:
             })
         return episodes
 
+    def get_all_time_stats(self) -> dict:
+        """Aggregate stats across all episodes."""
+        conn = self._get_conn()
+        row = conn.execute(
+            """SELECT
+                 COUNT(*) as total,
+                 COALESCE(SUM(bark_time_sec), 0) as total_bark_sec,
+                 MIN(start_time) as first_episode,
+                 COUNT(DISTINCT date(start_time)) as active_days
+               FROM episodes
+               WHERE bark_type NOT IN ('Not Bark', 'Unconfirmed')"""
+        ).fetchone()
+        return {
+            "total_episodes": row["total"],
+            "total_bark_minutes": round((row["total_bark_sec"] or 0) / 60, 1),
+            "first_episode": row["first_episode"],
+            "active_days": row["active_days"],
+        }
+
+    def get_weekly_daily_totals(self, weeks: int = 2) -> list[dict]:
+        """Return daily episode count + bark minutes for the last N weeks."""
+        tz = ZoneInfo(settings.timezone)
+        end = datetime.now(tz)
+        start = end - timedelta(days=weeks * 7)
+        start_iso = start.replace(hour=0, minute=0, second=0).isoformat()
+        end_iso = (end + timedelta(days=1)).replace(hour=0, minute=0, second=0).isoformat()
+
+        conn = self._get_conn()
+        rows = conn.execute(
+            """SELECT start_time, bark_time_sec FROM episodes
+               WHERE start_time >= ? AND start_time < ?
+               AND bark_type NOT IN ('Not Bark', 'Unconfirmed')""",
+            (start_iso, end_iso),
+        ).fetchall()
+
+        daily = {}
+        for row in rows:
+            dt = datetime.fromisoformat(row["start_time"]).astimezone(tz)
+            day_key = dt.strftime("%Y-%m-%d")
+            if day_key not in daily:
+                daily[day_key] = {"date": day_key, "episodes": 0, "bark_minutes": 0}
+            daily[day_key]["episodes"] += 1
+            daily[day_key]["bark_minutes"] += (row["bark_time_sec"] or 0) / 60
+
+        # Fill in missing days
+        result = []
+        current = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        while current <= end:
+            day_key = current.strftime("%Y-%m-%d")
+            entry = daily.get(day_key, {"date": day_key, "episodes": 0, "bark_minutes": 0})
+            entry["bark_minutes"] = round(entry["bark_minutes"], 1)
+            result.append(entry)
+            current += timedelta(days=1)
+        return result
+
+    def get_random_clip_path(self) -> str | None:
+        """Return a random clip path from confirmed bark episodes."""
+        conn = self._get_conn()
+        row = conn.execute(
+            """SELECT clip_path FROM episodes
+               WHERE clip_path IS NOT NULL
+               AND bark_type NOT IN ('Not Bark', 'Unconfirmed')
+               ORDER BY RANDOM() LIMIT 1"""
+        ).fetchone()
+        return row["clip_path"] if row else None
+
     # --- User management ---
 
     def create_user(self, username: str, password_hash: str):
