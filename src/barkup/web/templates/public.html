@@ -84,6 +84,9 @@
             {% set max_min = summary.hourly_bark_minutes.values()|max if summary.hourly_bark_minutes else 1 %}
             {% set height = (minutes / max_min * 100) if max_min > 0 else 0 %}
             <div class="bar-container">
+                {% if minutes > 0 %}
+                    <div class="bar-value">{{ "%.1f"|format(minutes) }}</div>
+                {% endif %}
                 <div class="bar {% if minutes > 2 %}bar-hot{% elif minutes > 0.5 %}bar-warm{% else %}bar-cool{% endif %}"
                      style="height: {{ height }}%"
                      title="{{ '%.1f'|format(minutes) }} min">
@@ -102,6 +105,9 @@
         {% set max_ep = weekly|map(attribute='episodes')|max if weekly else 1 %}
         {% for day in weekly %}
             <div class="bar-container">
+                {% if day.episodes > 0 %}
+                    <div class="bar-value">{{ day.episodes }}</div>
+                {% endif %}
                 <div class="bar {% if day.episodes > 10 %}bar-hot{% elif day.episodes > 3 %}bar-warm{% else %}bar-cool{% endif %}"
                      style="height: {{ (day.episodes / max_ep * 100) if max_ep > 0 else 0 }}%"
                      title="{{ day.date }}: {{ day.episodes }} episodes, {{ day.bark_minutes }} min">
