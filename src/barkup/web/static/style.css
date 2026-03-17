@@ -80,19 +80,17 @@ body {
     padding: 2rem 0 3rem;
 }
 
-/* Window viewport */
+/* Window viewport — aspect ratio matches video (816:1104 ≈ 0.739) */
 .window-viewport {
     position: relative;
     width: 280px;
-    height: 392px;
-    margin: 0 auto 1.5rem;
-    border-radius: 12px;
+    aspect-ratio: 816 / 1104;
+    margin: 0 auto 1rem;
     overflow: hidden;
 }
 .eddie-video {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -100,19 +98,16 @@ body {
 }
 .window-frame {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
     z-index: 2;
     pointer-events: none;
+    display: block;
 }
 .glass-reflection {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     z-index: 3;
     pointer-events: none;
     background: linear-gradient(
@@ -123,6 +118,20 @@ body {
         rgba(255,255,255,0.03) 100%
     );
 }
+.btn-refresh {
+    display: inline-block;
+    margin-bottom: 1.2rem;
+    padding: 0.4rem 1.2rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.2s;
+}
+.btn-refresh:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Legacy SVG fallback */
 .eddie-image-container {
@@ -602,7 +611,7 @@ body {
     .hero-title { font-size: 1.3rem; }
     .stat-value { font-size: 1.5rem; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .window-viewport { width: 220px; height: 308px; }
+    .window-viewport { width: 220px; }
     .dashboard-header {
         flex-direction: column;
         gap: 0.8rem;

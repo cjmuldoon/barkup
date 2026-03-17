@@ -3,7 +3,7 @@
 {% block content %}
 <div class="hero">
     <div class="window-viewport">
-        <video class="eddie-video" autoplay loop muted playsinline>
+        <video class="eddie-video" muted playsinline id="eddie-video">
             {% if mood == "devil" %}
                 <source src="{{ url_for('static', filename='eddie_devil_animation.mp4') }}" type="video/mp4">
             {% else %}
@@ -13,6 +13,7 @@
         <img class="window-frame" src="{{ url_for('static', filename='window_frame.svg') }}" alt="">
         <div class="glass-reflection"></div>
     </div>
+    <button class="btn-refresh" onclick="location.reload()">Check on Eddie</button>
 
     <h1 class="hero-title">
         {% if mood == "devil" %}
@@ -113,6 +114,19 @@
 {% endif %}
 
 <script>
+// Slow playback + pause 20s between loops
+(function() {
+    const vid = document.getElementById('eddie-video');
+    vid.playbackRate = 0.4;
+    vid.play();
+    vid.addEventListener('ended', function() {
+        setTimeout(function() {
+            vid.currentTime = 0;
+            vid.play();
+        }, 20000);
+    });
+})();
+
 function playRandomBark() {
     const btn = document.getElementById('bark-btn');
     const audio = document.getElementById('bark-audio');
