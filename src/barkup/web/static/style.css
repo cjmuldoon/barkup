@@ -90,9 +90,11 @@ body {
 }
 .eddie-video {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    /* Inset to sit inside the window frame borders */
+    top: 5.5%;
+    left: 6.5%;
+    width: 87%;
+    height: 90%;
     object-fit: cover;
     z-index: 1;
 }
