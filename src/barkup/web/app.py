@@ -119,6 +119,11 @@ def create_app(db=None):
             else:
                 mood = "neutral"
 
+        # Allow preview override: ?mood=devil or ?mood=angel
+        mood_override = request.args.get("mood")
+        if mood_override in ("devil", "angel", "neutral"):
+            mood = mood_override
+
         return render_template(
             "public.html",
             summary=summary,

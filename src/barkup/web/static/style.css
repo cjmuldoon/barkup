@@ -89,17 +89,17 @@ body {
 /* Footer */
 .footer {
     text-align: center;
-    padding: 2rem;
+    padding: 1.5rem;
     color: var(--text-muted);
     font-size: 0.8rem;
     border-top: 1px solid var(--border);
-    margin-top: 3rem;
+    margin-top: 1.5rem;
 }
 
 /* Hero section */
 .hero {
     text-align: center;
-    padding: 2rem 0 3rem;
+    padding: 1rem 0 0.5rem;
 }
 
 /* Window viewport — aspect ratio matches video (816:1104 ≈ 0.739) */
@@ -107,7 +107,7 @@ body {
     position: relative;
     width: 280px;
     aspect-ratio: 816 / 1104;
-    margin: 0 auto 1rem;
+    margin: 0 auto 0.6rem;
     overflow: hidden;
 }
 .eddie-video {
@@ -142,10 +142,16 @@ body {
         rgba(255,255,255,0.03) 100%
     );
 }
+/* Hero buttons row */
+.hero-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+}
 .btn-refresh {
     display: inline-block;
-    margin-bottom: 1.2rem;
-    padding: 0.4rem 1.2rem;
+    padding: 0.4rem 1rem;
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text-muted);
@@ -170,7 +176,7 @@ body {
 .hero-title {
     font-size: 1.8rem;
     font-weight: 700;
-    margin-bottom: 1rem;
+    margin-bottom: 0.3rem;
     letter-spacing: -0.03em;
 }
 .hero-title em {
@@ -178,25 +184,25 @@ body {
     font-style: italic;
 }
 .assessment {
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: var(--text-muted);
     max-width: 600px;
     margin: 0 auto;
-    line-height: 1.7;
+    line-height: 1.6;
 }
 
 /* Stats grid */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
-    margin: 2rem 0;
+    gap: 0.8rem;
+    margin: 1rem 0;
 }
 .stat-card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1.5rem;
+    padding: 1rem;
     text-align: center;
     transition: border-color 0.2s;
 }
@@ -230,8 +236,8 @@ body {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1.5rem;
-    margin: 2rem 0;
+    padding: 1rem;
+    margin: 1rem 0;
 }
 .chart-section h2 {
     font-size: 1rem;
@@ -434,7 +440,7 @@ body {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin-top: 2rem;
+    margin-top: 1rem;
     margin-bottom: -0.5rem;
     padding-left: 0.2rem;
 }
@@ -442,13 +448,12 @@ body {
 /* Random bark button */
 .btn-clip {
     display: inline-block;
-    margin-top: 1.5rem;
-    padding: 0.6rem 1.5rem;
-    background: var(--surface);
+    padding: 0.4rem 1rem;
+    background: transparent;
     border: 1px solid var(--border);
-    color: var(--text);
+    color: var(--text-muted);
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.2s;
     font-family: var(--font);

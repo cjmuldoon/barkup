@@ -13,7 +13,12 @@
         <img class="window-frame" src="{{ url_for('static', filename='window_frame.svg') }}" alt="">
         <div class="glass-reflection"></div>
     </div>
-    <button class="btn-refresh" onclick="location.reload()">Check on Eddie</button>
+
+    <div class="hero-buttons">
+        <button class="btn-refresh" onclick="location.reload()">Check on Eddie</button>
+        <button class="btn-clip" onclick="playRandomBark()" id="bark-btn">Hear Eddie bark</button>
+        <audio id="bark-audio" preload="none"></audio>
+    </div>
 
     <h1 class="hero-title">
         {% if mood == "devil" %}
@@ -26,11 +31,6 @@
     </h1>
 
     <p class="assessment">{{ assessment }}</p>
-
-    <button class="btn-clip" onclick="playRandomBark()" id="bark-btn">
-        Hear Eddie bark
-    </button>
-    <audio id="bark-audio" preload="none"></audio>
 </div>
 
 <div class="section-label">All Time</div>
