@@ -7,7 +7,8 @@
             {% if mood == "devil" %}
                 <source src="{{ url_for('static', filename='eddie_devil_animation.mp4') }}" type="video/mp4">
             {% else %}
-                <source src="{{ url_for('static', filename='eddie_angel_animation.mp4') }}" type="video/mp4">
+                {% set angel_vid = ['eddie_angel_animation.mp4', 'eddie_angel_animation2.mp4']|random %}
+                <source src="{{ url_for('static', filename=angel_vid) }}" type="video/mp4">
             {% endif %}
         </video>
         <img class="window-frame" src="{{ url_for('static', filename='window_frame.svg') }}" alt="">
