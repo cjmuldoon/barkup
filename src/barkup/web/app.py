@@ -142,8 +142,13 @@ def create_app(db=None):
     def api_random_clip():
         db = get_db()
         clip_path = db.get_random_clip_path()
-        if clip_path and Path(clip_path).exists():
-            return send_file(clip_path, mimetype="audio/wav")
+        if clip_path:
+            # Handle relative paths (e.g. clips/bark_...)
+            p = Path(clip_path)
+            if not p.is_absolute():
+                p = Path(settings.clip_storage_path).parent / clip_path
+            if p.exists():
+                return send_file(p, mimetype="audio/wav")
         abort(404)
 
     # --- Auth routes ---

@@ -264,24 +264,33 @@ class BarkDatabase:
 
     # --- Queries ---
 
+    def _local_to_utc_iso(self, date_str: str) -> str:
+        """Convert a local YYYY-MM-DD date to UTC ISO-8601 for SQLite comparison.
+
+        SQLite stores timestamps as strings. Since migrated data uses +00:00
+        and live data uses the local offset, we query in UTC so string
+        comparison works correctly for both.
+        """
+        tz = ZoneInfo(settings.timezone)
+        local_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
+        utc_dt = local_dt.astimezone(ZoneInfo("UTC"))
+        return utc_dt.isoformat()
+
     def get_episodes_for_range(self, start_date: str, end_date: str | None = None) -> list[dict]:
         """Query episodes by date range (local dates YYYY-MM-DD)."""
-        tz = ZoneInfo(settings.timezone)
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=tz)
-        start_iso = start_dt.isoformat()
+        start_utc = self._local_to_utc_iso(start_date)
 
         conn = self._get_conn()
         if end_date:
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=tz)
-            end_iso = end_dt.isoformat()
+            end_utc = self._local_to_utc_iso(end_date)
             rows = conn.execute(
                 "SELECT * FROM episodes WHERE start_time >= ? AND start_time < ? ORDER BY start_time",
-                (start_iso, end_iso),
+                (start_utc, end_utc),
             ).fetchall()
         else:
             rows = conn.execute(
                 "SELECT * FROM episodes WHERE start_time >= ? ORDER BY start_time",
-                (start_iso,),
+                (start_utc,),
             ).fetchall()
         return self._parse_rows(rows)
 
@@ -305,15 +314,15 @@ class BarkDatabase:
             date = datetime.now(tz).strftime("%Y-%m-%d")
         tomorrow = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
-        start_dt = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=tz)
-        end_dt = datetime.strptime(tomorrow, "%Y-%m-%d").replace(tzinfo=tz)
+        start_utc = self._local_to_utc_iso(date)
+        end_utc = self._local_to_utc_iso(tomorrow)
 
         conn = self._get_conn()
         rows = conn.execute(
             """SELECT start_time, bark_time_sec FROM episodes
                WHERE start_time >= ? AND start_time < ?
                AND bark_type NOT IN ('Not Bark', 'Unconfirmed')""",
-            (start_dt.isoformat(), end_dt.isoformat()),
+            (start_utc, end_utc),
         ).fetchall()
 
         hourly = {}
@@ -400,15 +409,17 @@ class BarkDatabase:
         tz = ZoneInfo(settings.timezone)
         end = datetime.now(tz)
         start = end - timedelta(days=weeks * 7)
-        start_iso = start.replace(hour=0, minute=0, second=0).isoformat()
-        end_iso = (end + timedelta(days=1)).replace(hour=0, minute=0, second=0).isoformat()
+        start_str = start.strftime("%Y-%m-%d")
+        end_str = (end + timedelta(days=1)).strftime("%Y-%m-%d")
+        start_utc = self._local_to_utc_iso(start_str)
+        end_utc = self._local_to_utc_iso(end_str)
 
         conn = self._get_conn()
         rows = conn.execute(
             """SELECT start_time, bark_time_sec FROM episodes
                WHERE start_time >= ? AND start_time < ?
                AND bark_type NOT IN ('Not Bark', 'Unconfirmed')""",
-            (start_iso, end_iso),
+            (start_utc, end_utc),
         ).fetchall()
 
         daily = {}

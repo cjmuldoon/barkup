@@ -22,8 +22,8 @@
     </filter>
 
     <!-- Outer drop shadow -->
-    <filter id="dropshadow" x="-5%" y="-5%" width="115%" height="115%">
-      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/>
+    <filter id="dropshadow" x="0%" y="0%" width="100%" height="100%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.2"/>
     </filter>
 
     <!-- The transparent window cutout mask -->
@@ -74,7 +74,5 @@
     <circle cx="200" cy="272" r="2.5" fill="#b89050" stroke="#5a4020" stroke-width="0.5"/>
   </g>
 
-  <!-- Glass reflection hints (very subtle) -->
-  <rect x="35" y="40" width="60" height="80" rx="2" fill="white" opacity="0.04" transform="rotate(-5 65 80)"/>
-  <rect x="211" y="285" width="50" height="70" rx="2" fill="white" opacity="0.03" transform="rotate(-3 236 320)"/>
+  <!-- Glass reflection handled by CSS overlay -->
 </svg>
