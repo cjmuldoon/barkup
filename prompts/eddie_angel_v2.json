@@ -1,0 +1,12 @@
+{
+    "image_input": [
+        "https://eddieisagoodboy.com/static/eddie_reference.jpg"
+    ],
+    "api_parameters": {
+        "aspect_ratio": "9:16",
+        "resolution": "2K",
+        "output_format": "png"
+    },
+    "scene": "A golden cavoodle dog named Eddie, identical to the reference image — same wavy golden-caramel fur, same dark round eyes, same brown nose, same olive-green collar — sitting upright in the exact same pose and camera angle as the reference photo, looking up at the camera from below at approximately 45 degrees. The dog is sitting on what was the concrete garden path, but the ground has transformed into soft luminous white cloud. His eyes are gently half-closed in a blissful, content expression — not asleep, just deeply peaceful and serene, still facing the camera. A glowing golden halo floats just above his head, emitting soft warm light. The background behind him has transformed from the garden into a gradient of soft peach, lavender, and pale gold tones with wispy cirrus clouds catching golden hour sunlight. Volumetric god rays stream down from the upper left, exactly matching the original photo's natural light direction. Tiny golden sparkles drift in the air around the halo. The overall mood is tranquil, warm, and sacred — the goodest boy in the world sitting peacefully. Shot with a Canon EOS R5, 85mm f/1.4 lens, ISO 200, looking down at the dog from above at 45 degrees matching the exact camera angle of the reference. The dog's fur shows realistic texture — individual curly strands catching the golden light, slight matting near the ears, natural color variation from deep amber at the back to lighter cream on the chest and chin whiskers. The cloud beneath him has realistic cotton-like volumetric density. Critical: maintain the exact same sitting upright body position, head tilt, and camera angle as the reference photo.",
+    "negative_prompt": "lying down, curled up, sleeping flat, different angle, side view, profile view, low angle, cartoon, anime, illustration, flat rendering, smooth plastic fur, oversaturated colors, harsh shadows, dark mood, aggressive expression, barking, open mouth, standing, red tones, fire, horns, devil imagery, text, watermark, logo, extra limbs, deformed anatomy, uncanny valley, AI artifacts, blurry, low resolution, noisy grain"
+}

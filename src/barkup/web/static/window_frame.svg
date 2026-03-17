@@ -1,0 +1,80 @@
+<svg viewBox="0 0 400 560" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Wood grain texture -->
+    <pattern id="woodgrain" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+      <rect width="80" height="80" fill="#5a3a1a"/>
+      <line x1="0" y1="5" x2="80" y2="8" stroke="#4e3216" stroke-width="1.5" opacity="0.4"/>
+      <line x1="0" y1="18" x2="80" y2="15" stroke="#6b4423" stroke-width="1" opacity="0.3"/>
+      <line x1="0" y1="28" x2="80" y2="31" stroke="#4e3216" stroke-width="2" opacity="0.25"/>
+      <line x1="0" y1="42" x2="80" y2="40" stroke="#6b4423" stroke-width="1" opacity="0.35"/>
+      <line x1="0" y1="55" x2="80" y2="58" stroke="#4e3216" stroke-width="1.5" opacity="0.3"/>
+      <line x1="0" y1="68" x2="80" y2="65" stroke="#6b4423" stroke-width="1" opacity="0.25"/>
+      <line x1="0" y1="76" x2="80" y2="78" stroke="#4e3216" stroke-width="1" opacity="0.2"/>
+    </pattern>
+
+    <!-- Inner shadow for depth -->
+    <filter id="innershadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur"/>
+      <feOffset dx="0" dy="2" result="offsetBlur"/>
+      <feComposite in="offsetBlur" in2="SourceGraphic" operator="out" result="shadow"/>
+      <feFlood flood-color="#000" flood-opacity="0.4" result="color"/>
+      <feComposite in="color" in2="shadow" operator="in"/>
+    </filter>
+
+    <!-- Outer drop shadow -->
+    <filter id="dropshadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+
+    <!-- The transparent window cutout mask -->
+    <mask id="windowmask">
+      <rect width="400" height="560" fill="white"/>
+      <!-- Left pane -->
+      <rect x="30" y="35" width="164" height="230" rx="4" fill="black"/>
+      <!-- Right pane -->
+      <rect x="206" y="35" width="164" height="230" rx="4" fill="black"/>
+      <!-- Left pane bottom -->
+      <rect x="30" y="280" width="164" height="245" rx="4" fill="black"/>
+      <!-- Right pane bottom -->
+      <rect x="206" y="280" width="164" height="245" rx="4" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- The frame with window cutouts (transparent where the panes are) -->
+  <g filter="url(#dropshadow)">
+    <!-- Outer frame -->
+    <rect x="4" y="4" width="392" height="552" rx="12" fill="url(#woodgrain)" mask="url(#windowmask)"/>
+
+    <!-- Frame edge highlights (top/left = lighter, bottom/right = darker) -->
+    <rect x="4" y="4" width="392" height="552" rx="12" fill="none" stroke="#7a5a30" stroke-width="2" mask="url(#windowmask)"/>
+
+    <!-- Outer border -->
+    <rect x="3" y="3" width="394" height="554" rx="13" fill="none" stroke="#3a2210" stroke-width="2"/>
+
+    <!-- Inner border around each pane -->
+    <rect x="28" y="33" width="168" height="234" rx="5" fill="none" stroke="#3a2210" stroke-width="2"/>
+    <rect x="204" y="33" width="168" height="234" rx="5" fill="none" stroke="#3a2210" stroke-width="2"/>
+    <rect x="28" y="278" width="168" height="249" rx="5" fill="none" stroke="#3a2210" stroke-width="2"/>
+    <rect x="204" y="278" width="168" height="249" rx="5" fill="none" stroke="#3a2210" stroke-width="2"/>
+
+    <!-- Inner highlight on pane edges (subtle light catch) -->
+    <rect x="30" y="35" width="164" height="230" rx="4" fill="none" stroke="#8a6a40" stroke-width="0.5" opacity="0.5"/>
+    <rect x="206" y="35" width="164" height="230" rx="4" fill="none" stroke="#8a6a40" stroke-width="0.5" opacity="0.5"/>
+    <rect x="30" y="280" width="164" height="245" rx="4" fill="none" stroke="#8a6a40" stroke-width="0.5" opacity="0.5"/>
+    <rect x="206" y="280" width="164" height="245" rx="4" fill="none" stroke="#8a6a40" stroke-width="0.5" opacity="0.5"/>
+
+    <!-- Centre vertical mullion detail (raised look) -->
+    <line x1="200" y1="8" x2="200" y2="552" stroke="#7a5a30" stroke-width="1" opacity="0.6"/>
+
+    <!-- Horizontal muntin detail -->
+    <line x1="8" y1="272" x2="392" y2="272" stroke="#7a5a30" stroke-width="1" opacity="0.6"/>
+
+    <!-- Subtle window latch (centre) -->
+    <rect x="190" y="265" width="20" height="14" rx="3" fill="#8a7040" stroke="#5a4020" stroke-width="1"/>
+    <circle cx="200" cy="272" r="2.5" fill="#b89050" stroke="#5a4020" stroke-width="0.5"/>
+  </g>
+
+  <!-- Glass reflection hints (very subtle) -->
+  <rect x="35" y="40" width="60" height="80" rx="2" fill="white" opacity="0.04" transform="rotate(-5 65 80)"/>
+  <rect x="211" y="285" width="50" height="70" rx="2" fill="white" opacity="0.03" transform="rotate(-3 236 320)"/>
+</svg>

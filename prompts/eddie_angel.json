@@ -1,0 +1,12 @@
+{
+    "image_input": [
+        "https://eddieisagoodboy.com/static/eddie_reference.jpg"
+    ],
+    "api_parameters": {
+        "aspect_ratio": "9:16",
+        "resolution": "2K",
+        "output_format": "png"
+    },
+    "scene": "A golden cavoodle dog named Eddie, identical to the reference image — same wavy golden-caramel fur, same dark round eyes, same brown nose, same olive-green collar — peacefully sleeping on a fluffy white cloud in a serene heavenly sky. Eddie is curled up contentedly with his eyes gently closed, looking utterly angelic and at peace. A glowing golden halo floats just above his head, emitting soft warm light. The background is a gradient of soft peach, lavender, and pale gold tones with wispy cirrus clouds catching late afternoon sunlight. Delicate rays of golden light stream down from above, creating volumetric god rays through the clouds. A few tiny golden sparkles drift lazily around the halo. The overall mood is tranquil, warm, and sacred — this is the goodest boy who ever lived. Shot with a Canon EOS R5, 85mm f/1.4 lens, ISO 200, soft natural backlighting. The dog's fur shows realistic texture — individual curly strands catching the light, slight matting near the ears, natural color variation from deep amber at the back to lighter cream on the chest and chin whiskers. The cloud has realistic cotton-like volumetric density, not flat or cartoonish.",
+    "negative_prompt": "cartoon, anime, illustration, flat rendering, smooth plastic fur, oversaturated colors, harsh shadows, dark mood, aggressive expression, barking, open mouth, standing, alert pose, red tones, fire, horns, devil imagery, text, watermark, logo, extra limbs, deformed anatomy, uncanny valley, AI artifacts, blurry, low resolution, noisy grain"
+}

@@ -1,0 +1,12 @@
+{
+    "image_input": [
+        "https://eddieisagoodboy.com/static/eddie_reference.jpg"
+    ],
+    "api_parameters": {
+        "aspect_ratio": "9:16",
+        "resolution": "2K",
+        "output_format": "png"
+    },
+    "scene": "A golden cavoodle dog named Eddie, identical to the reference image — same wavy golden-caramel fur, same dark round eyes, same brown nose, same olive-green collar — caught mid-bark with his mouth wide open showing teeth, sitting in the same outdoor concrete path setting but now dramatically lit with fiery warm tones. Two small glossy red devil horns protrude convincingly from the top of his head, emerging through his curly fur as if they grew there naturally. His eyes have a mischievous gleam with a subtle amber-red reflection. The background has dramatic warm orange and deep crimson bokeh suggesting nearby flames or intense sunset, with wisps of theatrical smoke curling at ground level. Tiny embers float in the air around him. Despite the devilish theme, Eddie still looks adorably cheeky rather than truly menacing — this is a playful naughty boy, not a monster. The bark lines of energy radiate subtly from his open mouth. Shot with a Canon EOS R5, 85mm f/1.4 lens, ISO 400, dramatic side lighting from the warm glow at camera left. The dog's fur shows realistic texture — individual curly strands catching the orange light, natural color variation, slight dishevelment from vigorous barking. The devil horns have realistic keratin-like surface texture with subtle translucency where the light catches the edges.",
+    "negative_prompt": "cartoon, anime, illustration, flat rendering, smooth plastic fur, cute passive expression, sleeping, eyes closed, blue cold tones, heaven, halo, angel imagery, text, watermark, logo, extra limbs, deformed anatomy, uncanny valley, AI artifacts, blurry, low resolution, noisy grain, scary horror, gore, blood, actually frightening, dark horror movie aesthetic"
+}

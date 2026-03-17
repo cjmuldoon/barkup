@@ -2,12 +2,16 @@
 
 {% block content %}
 <div class="hero">
-    <div class="eddie-image-container">
-        {% if mood == "devil" %}
-            {% include "eddie-devil.svg" %}
-        {% else %}
-            {% include "eddie-angel.svg" %}
-        {% endif %}
+    <div class="window-viewport">
+        <video class="eddie-video" autoplay loop muted playsinline>
+            {% if mood == "devil" %}
+                <source src="{{ url_for('static', filename='eddie_devil_animation.mp4') }}" type="video/mp4">
+            {% else %}
+                <source src="{{ url_for('static', filename='eddie_angel_animation.mp4') }}" type="video/mp4">
+            {% endif %}
+        </video>
+        <img class="window-frame" src="{{ url_for('static', filename='window_frame.svg') }}" alt="">
+        <div class="glass-reflection"></div>
     </div>
 
     <h1 class="hero-title">

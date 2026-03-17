@@ -79,6 +79,52 @@ body {
     text-align: center;
     padding: 2rem 0 3rem;
 }
+
+/* Window viewport */
+.window-viewport {
+    position: relative;
+    width: 280px;
+    height: 392px;
+    margin: 0 auto 1.5rem;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.eddie-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+}
+.window-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+}
+.glass-reflection {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    pointer-events: none;
+    background: linear-gradient(
+        135deg,
+        rgba(255,255,255,0.06) 0%,
+        rgba(255,255,255,0) 40%,
+        rgba(255,255,255,0) 60%,
+        rgba(255,255,255,0.03) 100%
+    );
+}
+
+/* Legacy SVG fallback */
 .eddie-image-container {
     width: 200px;
     height: 200px;
@@ -556,6 +602,7 @@ body {
     .hero-title { font-size: 1.3rem; }
     .stat-value { font-size: 1.5rem; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .window-viewport { width: 220px; height: 308px; }
     .dashboard-header {
         flex-direction: column;
         gap: 0.8rem;
