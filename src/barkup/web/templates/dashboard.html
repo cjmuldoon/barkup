@@ -73,9 +73,9 @@
             <tbody>
                 {% for ep in episodes %}
                 {% set clip_name = ep.clip_path.split('/')[-1] if ep.clip_path else '' %}
-                {% set video_name = clip_name.replace('.wav', '.mp4') if clip_name else '' %}
+                {% set video_name = ep.video_path.split('/')[-1] if ep.video_path else '' %}
                 {% set snap_name = ep.snapshot_path.split('/')[-1] if ep.snapshot_path else '' %}
-                {% set has_media = ep.clip_path or ep.nest_link or ep.snapshot_path %}
+                {% set has_media = ep.clip_path or ep.video_path or ep.nest_link or ep.snapshot_path %}
                 <tr class="ep-row {% if ep.bark_type == 'Not Bark' %}row-dismissed{% elif ep.bark_type == 'Unconfirmed' %}row-unconfirmed{% endif %}"
                     {% if has_media %}
                     data-audio="{{ url_for('serve_clip', filename=clip_name) if clip_name else '' }}"

@@ -492,9 +492,10 @@ body {
 
 /* Media links in episodes table */
 .media-links {
-    display: flex;
-    gap: 0.5rem;
+    display: inline-flex;
+    gap: 0.4rem;
     flex-wrap: wrap;
+    vertical-align: middle;
 }
 .media-links a {
     display: inline-block;

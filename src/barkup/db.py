@@ -385,6 +385,7 @@ class BarkDatabase:
                 "intervened": bool(row["intervened"]),
                 "nest_link": row["nest_link"],
                 "clip_path": row["clip_path"],
+                "video_path": row["video_path"],
                 "snapshot_path": row["snapshot_path"],
                 "notes": row["notes"],
             })
