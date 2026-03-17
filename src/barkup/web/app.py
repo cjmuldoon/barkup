@@ -83,12 +83,24 @@ def create_app(db=None):
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
 
-        if bark_this_hour > 2:
-            mood = "devil"
-        elif bark_this_hour < 0.5:
-            mood = "angel"
+        # During monitoring hours: mood based on current hour's barking
+        # After monitoring ends (20:30+): mood based on total day
+        monitoring_ended = current_hour >= settings.monitor_end_hour
+        if monitoring_ended:
+            total_episodes = summary.get("total_episodes", 0)
+            if total_episodes > 15:
+                mood = "devil"
+            elif total_episodes <= 5:
+                mood = "angel"
+            else:
+                mood = "neutral"
         else:
-            mood = "neutral"
+            if bark_this_hour > 2:
+                mood = "devil"
+            elif bark_this_hour < 0.5:
+                mood = "angel"
+            else:
+                mood = "neutral"
 
         return render_template(
             "public.html",
@@ -110,13 +122,20 @@ def create_app(db=None):
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
 
+        monitoring_ended = current_hour >= settings.monitor_end_hour
+        if monitoring_ended:
+            total_episodes = summary.get("total_episodes", 0)
+            mood = "devil" if total_episodes > 15 else ("angel" if total_episodes <= 5 else "neutral")
+        else:
+            mood = "devil" if bark_this_hour > 2 else ("angel" if bark_this_hour < 0.5 else "neutral")
+
         return {
             "today_episodes": summary["total_episodes"],
             "today_bark_minutes": summary["total_bark_minutes"],
             "all_time_episodes": all_time["total_episodes"],
             "peak_hour": summary["peak_hour"],
             "bark_this_hour": round(bark_this_hour, 1),
-            "mood": "devil" if bark_this_hour > 2 else ("angel" if bark_this_hour < 0.5 else "neutral"),
+            "mood": mood,
         }
 
     @app.route("/api/random-clip")
