@@ -361,15 +361,18 @@ class BarkDatabase:
         }
 
     def _parse_rows(self, rows: list) -> list[dict]:
+        tz = ZoneInfo(settings.timezone)
         episodes = []
         for row in rows:
             start_str = row["start_time"]
             if not start_str:
                 continue
+            # Always convert to local timezone for display
+            start_dt = datetime.fromisoformat(start_str).astimezone(tz)
             episodes.append({
                 "id": row["id"],
                 "title": row["event_title"],
-                "start_time": datetime.fromisoformat(start_str),
+                "start_time": start_dt,
                 "duration_seconds": row["duration_sec"] or 0,
                 "bark_time_seconds": row["bark_time_sec"] or 0,
                 "bark_count": row["bark_count"] or 0,
