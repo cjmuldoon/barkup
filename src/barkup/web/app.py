@@ -124,6 +124,19 @@ def create_app(db=None):
         if mood_override in ("devil", "angel", "neutral"):
             mood = mood_override
 
+        # Build headline based on time of day and mood
+        now_time = datetime.now(tz)
+        monitor_start = now_time.replace(hour=settings.monitor_start_hour, minute=settings.monitor_start_minute, second=0)
+        monitor_end = now_time.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
+        is_good = mood != "devil"
+
+        if monitor_start <= now_time < monitor_end:
+            headline = "Eddie is a good boy!" if is_good else "Eddie is NOT a good boy!"
+        elif now_time >= monitor_end:
+            headline = "Eddie was a good boy today!" if is_good else "Eddie was NOT a good boy today!"
+        else:
+            headline = "Eddie was a good boy yesterday!" if is_good else "Eddie was NOT a good boy yesterday!"
+
         return render_template(
             "public.html",
             summary=summary,
@@ -131,6 +144,7 @@ def create_app(db=None):
             weekly=weekly,
             assessment=assessment,
             mood=mood,
+            headline=headline,
             bark_this_hour=round(bark_this_hour, 1),
         )
 

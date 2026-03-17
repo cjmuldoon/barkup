@@ -21,12 +21,10 @@
     </div>
 
     <h1 class="hero-title">
-        {% if mood == "devil" %}
-            Eddie is being... <em>spirited</em> right now
-        {% elif mood == "angel" %}
-            Eddie is a good boy
+        {% if "NOT" in headline %}
+            {{ headline.replace("NOT", '<em>NOT</em>')|safe }}
         {% else %}
-            Eddie is keeping watch
+            {{ headline }}
         {% endif %}
     </h1>
 
