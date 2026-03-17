@@ -85,6 +85,14 @@ body {
     transition: color 0.2s;
 }
 .nav-links a:hover { color: var(--text); }
+.nav-refresh {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+.nav-refresh:hover { color: var(--accent); background: var(--surface-hover); }
 
 /* Footer */
 .footer {
