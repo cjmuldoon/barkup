@@ -77,6 +77,50 @@ body {
     margin: 0 0.15rem;
     letter-spacing: 0.02em;
 }
+
+/* Navbar reveal: always show good state, crossfade to bad */
+.nav-logo-wrap {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+.nav-logo-good, .nav-logo-bad {
+    position: absolute;
+    inset: 0;
+    transition: opacity 2s ease;
+}
+.nav-logo-bad { opacity: 0; }
+.reveal-bad .nav-logo-good { opacity: 0; }
+.reveal-bad .nav-logo-bad { opacity: 1; }
+
+.nav-title-wrap { position: relative; }
+.nav-title-good, .nav-title-bad {
+    transition: opacity 2s ease;
+}
+.nav-title-bad {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    white-space: nowrap;
+}
+.reveal-bad .nav-title-good { opacity: 0; }
+.reveal-bad .nav-title-bad { opacity: 1; }
+
+/* Headline reveal */
+.headline-good, .headline-bad {
+    transition: opacity 2s ease;
+}
+.headline-bad {
+    position: absolute;
+    left: 0;
+    right: 0;
+    opacity: 0;
+}
+.hero-title { position: relative; }
+.reveal-bad .headline-good { opacity: 0; }
+.reveal-bad .headline-bad { opacity: 1; }
 .nav-links {
     display: flex;
     align-items: center;

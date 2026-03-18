@@ -181,14 +181,16 @@ def create_app(db=None):
         # Generate assessment from the relevant summary
         assessment = generate_assessment(mood_summary)
 
-        # Build headline
-        is_good = mood != "devil"
+        # Build both headline variants for reveal animation
         if period == "during":
-            headline = "Eddie is a good boy!" if is_good else "Eddie is NOT a good boy!"
+            headline_good = "Eddie is a good boy!"
+            headline_bad = 'Eddie is <em>NOT</em> a good boy!'
         elif period == "after":
-            headline = "Eddie was a good boy today!" if is_good else "Eddie was NOT a good boy today!"
+            headline_good = "Eddie was a good boy today!"
+            headline_bad = 'Eddie was <em>NOT</em> a good boy today!'
         else:
-            headline = "Eddie was a good boy yesterday!" if is_good else "Eddie was NOT a good boy yesterday!"
+            headline_good = "Eddie was a good boy yesterday!"
+            headline_bad = 'Eddie was <em>NOT</em> a good boy yesterday!'
 
         return render_template(
             "public.html",
@@ -197,7 +199,8 @@ def create_app(db=None):
             weekly=weekly,
             assessment=assessment,
             mood=mood,
-            headline=headline,
+            headline_good=headline_good,
+            headline_bad=headline_bad,
             bark_this_hour=round(bark_this_hour, 1),
         )
 

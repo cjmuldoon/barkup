@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-mood="{{ mood }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,13 +11,14 @@
 <body>
     <nav class="navbar">
         <a href="{{ url_for('index') }}" class="nav-brand">
-            {% if mood == "devil" %}
-                <img src="{{ url_for('static', filename='eddie_logo_devil_t.png') }}" alt="" class="nav-logo">
-                <span>eddie is <span class="not-stamp">NOT</span> a good boy .com</span>
-            {% else %}
-                <img src="{{ url_for('static', filename='eddie_logo_angel_t.png') }}" alt="" class="nav-logo">
-                <span>eddieisagoodboy.com</span>
-            {% endif %}
+            <span class="nav-logo-wrap">
+                <img src="{{ url_for('static', filename='eddie_logo_angel_t.png') }}" alt="" class="nav-logo nav-logo-good">
+                <img src="{{ url_for('static', filename='eddie_logo_devil_t.png') }}" alt="" class="nav-logo nav-logo-bad">
+            </span>
+            <span class="nav-title-wrap">
+                <span class="nav-title-good">eddieisagoodboy.com</span>
+                <span class="nav-title-bad">eddie is <span class="not-stamp">NOT</span> a good boy .com</span>
+            </span>
         </a>
         <div class="nav-links">
             <a href="/" class="nav-refresh" onclick="event.preventDefault(); location.reload();" title="Refresh">

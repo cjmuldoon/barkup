@@ -21,11 +21,8 @@
     </div>
 
     <h1 class="hero-title">
-        {% if "NOT" in headline %}
-            {{ headline.replace("NOT", '<em>NOT</em>')|safe }}
-        {% else %}
-            {{ headline }}
-        {% endif %}
+        <span class="headline-good" id="headline-good">{{ headline_good }}</span>
+        <span class="headline-bad" id="headline-bad">{{ headline_bad|safe }}</span>
     </h1>
 
     <p class="assessment">{{ assessment }}</p>
@@ -129,14 +126,34 @@
 {% endif %}
 
 <script>
-// Slow playback + pause 20s between loops
 (function() {
     const vid = document.getElementById('eddie-video');
+    const mood = document.documentElement.dataset.mood;
+    let revealed = false;
+
     vid.playbackRate = 0.4;
     vid.play();
+
+    // If devil: reveal bad state partway through the video
+    if (mood === 'devil') {
+        vid.addEventListener('timeupdate', function() {
+            if (revealed) return;
+            // Trigger reveal at 40% through the video
+            if (vid.currentTime / vid.duration > 0.4) {
+                revealed = true;
+                document.body.classList.add('reveal-bad');
+            }
+        });
+    }
+
     vid.addEventListener('ended', function() {
         setTimeout(function() {
             vid.currentTime = 0;
+            // Reset reveal for next loop
+            if (mood === 'devil') {
+                revealed = false;
+                document.body.classList.remove('reveal-bad');
+            }
             vid.play();
         }, 20000);
     });
