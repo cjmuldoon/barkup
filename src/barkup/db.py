@@ -411,17 +411,32 @@ class BarkDatabase:
         }
 
     def get_daily_averages(self, days: int = 14) -> dict:
-        """Return average daily bark count and bark minutes over the last N days."""
+        """Return average daily bark count and bark minutes over the last N days.
+
+        Excludes days with zero total episodes (any type) as the system
+        was likely not recording. Days where the system ran but Eddie
+        was quiet (has Not Bark/Unconfirmed but no confirmed) still count.
+        """
         tz = ZoneInfo(settings.timezone)
         end = datetime.now(tz)
         totals = {"bark_count": 0, "bark_minutes": 0, "episodes": 0, "days_with_data": 0}
 
+        conn = self._get_conn()
         for i in range(1, days + 1):
             d = (end - timedelta(days=i)).strftime("%Y-%m-%d")
             d_next = (end - timedelta(days=i - 1)).strftime("%Y-%m-%d")
             start_utc = self._local_to_utc_iso(d)
             end_utc = self._local_to_utc_iso(d_next)
-            conn = self._get_conn()
+
+            # Check if the system was recording at all (any episode type)
+            any_row = conn.execute(
+                "SELECT COUNT(*) as c FROM episodes WHERE start_time >= ? AND start_time < ?",
+                (start_utc, end_utc),
+            ).fetchone()
+            if any_row["c"] == 0:
+                continue  # System wasn't recording — skip this day
+
+            # Get confirmed bark stats for this day
             row = conn.execute(
                 """SELECT COUNT(*) as eps, COALESCE(SUM(bark_count),0) as bc,
                           COALESCE(SUM(bark_time_sec),0) as bt
@@ -429,11 +444,11 @@ class BarkDatabase:
                    AND bark_type NOT IN ('Not Bark', 'Unconfirmed')""",
                 (start_utc, end_utc),
             ).fetchone()
-            if row["eps"] > 0:
-                totals["episodes"] += row["eps"]
-                totals["bark_count"] += row["bc"]
-                totals["bark_minutes"] += row["bt"] / 60
-                totals["days_with_data"] += 1
+
+            totals["episodes"] += row["eps"]
+            totals["bark_count"] += row["bc"]
+            totals["bark_minutes"] += row["bt"] / 60
+            totals["days_with_data"] += 1
 
         n = totals["days_with_data"] or 1
         return {
