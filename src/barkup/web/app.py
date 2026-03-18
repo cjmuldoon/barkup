@@ -48,13 +48,22 @@ def calculate_bark_score(summary: dict, averages: dict) -> float:
     return round(score, 1)
 
 
-def score_to_mood(score: float) -> str:
+def score_to_mood(score: float, summary: dict | None = None) -> str:
     """Convert a bark score to a mood.
 
-    < 25: angel (well below average)
-    25-65: neutral (around average)
-    > 65: devil (well above average)
+    Hard limits (regardless of score):
+      bark_count > 1000 OR bark_minutes > 20 → devil
+
+    Score thresholds:
+      < 25: angel (well below average)
+      25-65: neutral (around average)
+      > 65: devil (well above average)
     """
+    if summary:
+        if summary.get("total_bark_count", 0) > 1000:
+            return "devil"
+        if summary.get("total_bark_minutes", 0) > 20:
+            return "devil"
     if score > 65:
         return "devil"
     elif score < 25:
@@ -123,7 +132,7 @@ def create_app(db=None):
             mood_summary = db.get_daily_summary()
 
         bark_score = calculate_bark_score(mood_summary, averages)
-        mood = score_to_mood(bark_score)
+        mood = score_to_mood(bark_score, mood_summary)
 
         return {"now": now, "mood": mood}
 
@@ -167,11 +176,11 @@ def create_app(db=None):
         if period == "during":
             # During monitoring: score based on today so far
             bark_score = calculate_bark_score(mood_summary, averages)
-            mood = score_to_mood(bark_score)
+            mood = score_to_mood(bark_score, mood_summary)
         else:
             # After monitoring or before next day — score the full day
             bark_score = calculate_bark_score(mood_summary, averages)
-            mood = score_to_mood(bark_score)
+            mood = score_to_mood(bark_score, mood_summary)
 
         # Allow preview override: ?mood=devil or ?mood=angel
         mood_override = request.args.get("mood")
@@ -216,7 +225,7 @@ def create_app(db=None):
         bark_this_hour = hourly.get(current_hour, 0)
 
         bark_score = calculate_bark_score(summary, averages)
-        mood = score_to_mood(bark_score)
+        mood = score_to_mood(bark_score, summary)
 
         return {
             "today_episodes": summary["total_episodes"],
