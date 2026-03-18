@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}About - Eddie Is A Good Boy{% endblock %}
+
+{% block content %}
+<div class="about-page">
+
+<h1 class="about-title">The Story of Eddie Dean</h1>
+<p class="about-subtitle">AI-powered dog bark tracking because apparently our dog is single-handedly terrorising an entire suburb.</p>
+
+<div class="about-section">
+    <h2>The Accused</h2>
+    <p>
+        The accused is <strong>Eddie Dean</strong>, a medium-to-small Groodle and certified Good Boy. Eddie's rap sheet includes: barking at the postman (fair), saying g'day to doggy colleagues getting their walk (reasonable), and barking at <strong>Shadow</strong> &mdash; the blue-grey cat from two doors down who is, by any objective measure, the <em>actual</em> neighbourhood terrorist. Shadow's hobbies include sitting on top of everyone's roofs and tormenting every dog in a three-block radius. Nobody writes Shadow a letter.
+    </p>
+</div>
+
+<div class="about-section">
+    <h2>The Letter</h2>
+    <p>
+        One fine day, we received a 500-word <em>handwritten</em> letter from a neighbour &mdash; let's call her Karen &mdash; detailing how Eddie had allegedly barked for <strong>2 hours straight</strong> and was "impacting at least 60 people." Sixty. Six-zero. One Groodle. Sixty victims. We can only assume Karen was out at our gate for the full 2 hours with a clipboard and a stopwatch, which ironically would give Eddie something to bark at.
+    </p>
+    <p>
+        The letter was a masterclass in passive aggression, meticulously penned in cursive, factually creative, and lovingly concluded with:
+    </p>
+    <blockquote>"Your loving neighbour"</blockquote>
+
+    <div class="about-image-container">
+        <img src="{{ url_for('static', filename='love_from_karen.jpeg') }}" alt="The letter from Karen" class="about-image">
+        <p class="about-caption">Exhibit A: The letter that started it all.</p>
+    </div>
+</div>
+
+<div class="about-section">
+    <h2>The Betrayal</h2>
+    <p>
+        My wife's first instinct was to slap a shock collar on Eddie Dean. No trial. No evidence review. No due process. Just straight to the electric chair based on the uncorroborated testimony of one anonymous cursive enthusiast. Eddie's own mother was ready to turn on him.
+    </p>
+</div>
+
+<div class="about-section">
+    <h2>The Response</h2>
+    <p>
+        Rather than electrocute the family dog on Karen's say-so, I decided to do what any reasonable person would do: build an over-engineered AI surveillance system to prove Karen wrong with cold, hard data. Eddie deserves justice. Shadow deserves the letter. And my wife owes Eddie an apology.
+    </p>
+
+    <div class="about-image-container">
+        <img src="{{ url_for('static', filename='sorry_karen.JPG') }}" alt="Eddie's revoked Good Boy certificate" class="about-image about-image-sm">
+        <p class="about-caption">Eddie's Good Boy certificate. Status: revoked. Pending appeal.</p>
+    </div>
+</div>
+
+<div class="about-section">
+    <h2>What It Does</h2>
+    <p>
+        This site monitors Eddie's Nest Cam 24/7 using Google's YAMNet machine learning model to classify audio in real-time, logging every single bark with forensic precision. Because if someone's going to accuse your dog of a 2-hour bark-a-thon, you'd better have receipts.
+    </p>
+    <ul class="about-features">
+        <li><strong>AI Bark Classification</strong> &mdash; YAMNet distinguishes barks, howls, yips, whimpers, and growls. Science, Karen.</li>
+        <li><strong>Duration Tracking</strong> &mdash; Exact start time, end time, and duration of every episode. Down to the second.</li>
+        <li><strong>Confidence Scoring</strong> &mdash; How confident the AI is that it was actually a bark and not, say, 60 people gasping in horror.</li>
+        <li><strong>False Positive Filtering</strong> &mdash; TV, speech, music, instruments, and household noises are suppressed. Eddie won't be framed by a trumpet solo.</li>
+        <li><strong>Real-time Monitoring</strong> &mdash; Continuous audio stream during daylight hours. Barks are caught within 1 second.</li>
+        <li><strong>Behaviour Assessment</strong> &mdash; A weighted scoring algorithm determines whether Eddie has been a good boy or not, based on bark count, bark time, and episode frequency relative to his 14-day average.</li>
+    </ul>
+</div>
+
+<div class="about-section">
+    <h2>The Verdict</h2>
+    <p>
+        Spoiler alert: Eddie does not bark for 2 hours straight. He never has. But now we have the data to prove it &mdash; timestamped, classified by AI, and logged in a database. And if it turns out he <em>does</em> bark for an extended period, we'll know exactly when, why, and that Shadow was almost certainly on a roof somewhere nearby looking smug.
+    </p>
+    <p class="about-signoff">Your loving developer.</p>
+</div>
+
+<div class="about-footer-note">
+    <p>Built with <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>, fuelled entirely by spite and a deep commitment to the truth.</p>
+</div>
+
+</div>
+{% endblock %}

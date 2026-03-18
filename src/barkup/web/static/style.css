@@ -731,6 +731,96 @@ body {
 .log-debug { color: var(--text-muted); opacity: 0.6; }
 .log-empty { color: var(--text-muted); text-align: center; padding: 2rem; }
 
+/* About page */
+.about-page { max-width: 700px; margin: 0 auto; }
+.about-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+    letter-spacing: -0.02em;
+}
+.about-subtitle {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-style: italic;
+    margin-bottom: 1.5rem;
+}
+.about-section {
+    margin-bottom: 1.5rem;
+}
+.about-section h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+}
+.about-section p {
+    color: var(--text);
+    line-height: 1.7;
+    margin-bottom: 0.6rem;
+}
+.about-section blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 0.5rem 1rem;
+    margin: 0.8rem 0;
+    color: var(--text-muted);
+    font-style: italic;
+    background: var(--surface);
+    border-radius: 0 8px 8px 0;
+}
+.about-image-container {
+    margin: 1rem 0;
+    text-align: center;
+}
+.about-image {
+    max-width: 100%;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+.about-image-sm { max-width: 360px; }
+.about-caption {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.4rem;
+    font-style: italic;
+}
+.about-features {
+    list-style: none;
+    padding: 0;
+    margin: 0.8rem 0;
+}
+.about-features li {
+    padding: 0.4rem 0 0.4rem 1.2rem;
+    position: relative;
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+.about-features li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.75rem;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+.about-signoff {
+    color: var(--accent);
+    font-style: italic;
+    margin-top: 0.8rem;
+}
+.about-footer-note {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.about-footer-note a { color: var(--accent); }
+
 /* Mobile media popup */
 .media-popup-overlay {
     display: none;

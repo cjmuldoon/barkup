@@ -238,6 +238,10 @@ def create_app(db=None):
             "mood": mood,
         }
 
+    @app.route("/about")
+    def about():
+        return render_template("about.html")
+
     @app.route("/api/random-clip")
     def api_random_clip():
         db = get_db()
