@@ -410,6 +410,39 @@ class BarkDatabase:
             "active_days": row["active_days"],
         }
 
+    def get_daily_averages(self, days: int = 14) -> dict:
+        """Return average daily bark count and bark minutes over the last N days."""
+        tz = ZoneInfo(settings.timezone)
+        end = datetime.now(tz)
+        totals = {"bark_count": 0, "bark_minutes": 0, "episodes": 0, "days_with_data": 0}
+
+        for i in range(1, days + 1):
+            d = (end - timedelta(days=i)).strftime("%Y-%m-%d")
+            d_next = (end - timedelta(days=i - 1)).strftime("%Y-%m-%d")
+            start_utc = self._local_to_utc_iso(d)
+            end_utc = self._local_to_utc_iso(d_next)
+            conn = self._get_conn()
+            row = conn.execute(
+                """SELECT COUNT(*) as eps, COALESCE(SUM(bark_count),0) as bc,
+                          COALESCE(SUM(bark_time_sec),0) as bt
+                   FROM episodes WHERE start_time >= ? AND start_time < ?
+                   AND bark_type NOT IN ('Not Bark', 'Unconfirmed')""",
+                (start_utc, end_utc),
+            ).fetchone()
+            if row["eps"] > 0:
+                totals["episodes"] += row["eps"]
+                totals["bark_count"] += row["bc"]
+                totals["bark_minutes"] += row["bt"] / 60
+                totals["days_with_data"] += 1
+
+        n = totals["days_with_data"] or 1
+        return {
+            "avg_episodes": round(totals["episodes"] / n, 1),
+            "avg_bark_count": round(totals["bark_count"] / n, 1),
+            "avg_bark_minutes": round(totals["bark_minutes"] / n, 1),
+            "days_with_data": totals["days_with_data"],
+        }
+
     def get_most_common_peak_hour(self) -> int | None:
         """Find the most common 'busiest hour of the day' across all tracked days.
 

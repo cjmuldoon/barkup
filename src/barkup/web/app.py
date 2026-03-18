@@ -19,6 +19,48 @@ logger = logging.getLogger(__name__)
 _db = None
 _health_callback = None
 
+
+def calculate_bark_score(summary: dict, averages: dict) -> float:
+    """Calculate a 0-100 'naughtiness' score based on bark intensity.
+
+    Weights bark_count (40%) and bark_minutes (40%) more heavily than
+    episode count (20%), since many short episodes are less impactful
+    than fewer but intense barking sessions.
+
+    Scores are relative to the 14-day average:
+      0 = silent day, 50 = average day, 100+ = much worse than average.
+    """
+    avg_bc = averages.get("avg_bark_count", 1) or 1
+    avg_bm = averages.get("avg_bark_minutes", 1) or 1
+    avg_ep = averages.get("avg_episodes", 1) or 1
+
+    bc = summary.get("total_bark_count", 0)
+    bm = summary.get("total_bark_minutes", 0)
+    ep = summary.get("total_episodes", 0)
+
+    # Each component as a ratio of average (1.0 = average day)
+    bc_ratio = bc / avg_bc
+    bm_ratio = bm / avg_bm
+    ep_ratio = ep / avg_ep
+
+    # Weighted combination, scaled to 0-100 where 50 = average
+    score = (bc_ratio * 0.4 + bm_ratio * 0.4 + ep_ratio * 0.2) * 50
+    return round(score, 1)
+
+
+def score_to_mood(score: float) -> str:
+    """Convert a bark score to a mood.
+
+    < 25: angel (well below average)
+    25-65: neutral (around average)
+    > 65: devil (well above average)
+    """
+    if score > 65:
+        return "devil"
+    elif score < 25:
+        return "angel"
+    return "neutral"
+
 # Ring buffer log handler — keeps last 500 log lines in memory
 _log_buffer = collections.deque(maxlen=500)
 
@@ -68,21 +110,20 @@ def create_app(db=None):
     def inject_globals():
         tz = ZoneInfo(settings.timezone)
         now = datetime.now(tz)
-        current_hour = now.hour
+        monitor_start = now.replace(hour=settings.monitor_start_hour, minute=settings.monitor_start_minute, second=0)
+        monitor_end = now.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
 
-        # Compute mood for navbar/favicon across all pages
         db = get_db()
-        summary = db.get_daily_summary()
-        hourly = summary.get("hourly_bark_minutes", {})
-        bark_this_hour = hourly.get(current_hour, 0)
-        now_min = datetime.now(tz)
-        monitor_end_today = now_min.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
-        monitoring_ended = now_min >= monitor_end_today
-        if monitoring_ended:
-            total_episodes = summary.get("total_episodes", 0)
-            mood = "devil" if total_episodes > 15 else ("angel" if total_episodes <= 5 else "neutral")
+        averages = db.get_daily_averages(14)
+
+        if now < monitor_start:
+            yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+            mood_summary = db.get_daily_summary(yesterday)
         else:
-            mood = "devil" if bark_this_hour > 2 else ("angel" if bark_this_hour < 0.5 else "neutral")
+            mood_summary = db.get_daily_summary()
+
+        bark_score = calculate_bark_score(mood_summary, averages)
+        mood = score_to_mood(bark_score)
 
         return {"now": now, "mood": mood}
 
@@ -120,24 +161,17 @@ def create_app(db=None):
         current_hour = now_time.hour
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
+        averages = db.get_daily_averages(14)
 
-        # Calculate mood
+        # Calculate mood using weighted scoring algorithm
         if period == "during":
-            if bark_this_hour > 2:
-                mood = "devil"
-            elif bark_this_hour < 0.5:
-                mood = "angel"
-            else:
-                mood = "neutral"
+            # During monitoring: score based on today so far
+            bark_score = calculate_bark_score(mood_summary, averages)
+            mood = score_to_mood(bark_score)
         else:
-            # After monitoring or before next day — use day total
-            total_episodes = mood_summary.get("total_episodes", 0)
-            if total_episodes > 15:
-                mood = "devil"
-            elif total_episodes <= 5:
-                mood = "angel"
-            else:
-                mood = "neutral"
+            # After monitoring or before next day — score the full day
+            bark_score = calculate_bark_score(mood_summary, averages)
+            mood = score_to_mood(bark_score)
 
         # Allow preview override: ?mood=devil or ?mood=angel
         mood_override = request.args.get("mood")
@@ -172,26 +206,23 @@ def create_app(db=None):
         db = get_db()
         summary = db.get_daily_summary()
         all_time = db.get_all_time_stats()
+        averages = db.get_daily_averages(14)
         tz = ZoneInfo(settings.timezone)
         current_hour = datetime.now(tz).hour
         hourly = summary.get("hourly_bark_minutes", {})
         bark_this_hour = hourly.get(current_hour, 0)
 
-        now_min = datetime.now(tz)
-        monitor_end_today = now_min.replace(hour=settings.monitor_end_hour, minute=settings.monitor_end_minute, second=0)
-        monitoring_ended = now_min >= monitor_end_today
-        if monitoring_ended:
-            total_episodes = summary.get("total_episodes", 0)
-            mood = "devil" if total_episodes > 15 else ("angel" if total_episodes <= 5 else "neutral")
-        else:
-            mood = "devil" if bark_this_hour > 2 else ("angel" if bark_this_hour < 0.5 else "neutral")
+        bark_score = calculate_bark_score(summary, averages)
+        mood = score_to_mood(bark_score)
 
         return {
             "today_episodes": summary["total_episodes"],
             "today_bark_minutes": summary["total_bark_minutes"],
+            "today_bark_count": summary["total_bark_count"],
             "all_time_episodes": all_time["total_episodes"],
             "peak_hour": summary["peak_hour"],
             "bark_this_hour": round(bark_this_hour, 1),
+            "bark_score": bark_score,
             "mood": mood,
         }
 
