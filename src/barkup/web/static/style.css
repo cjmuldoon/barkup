@@ -317,6 +317,26 @@ body {
     padding-bottom: 24px;
     position: relative;
 }
+.avg-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-top: 1.5px dashed var(--text-muted);
+    opacity: 0.4;
+    z-index: 1;
+    pointer-events: none;
+}
+.avg-label {
+    position: absolute;
+    right: 0;
+    top: -14px;
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
 .bar-container {
     flex: 1;
     display: flex;
