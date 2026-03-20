@@ -188,7 +188,11 @@ def create_app(db=None):
             mood = mood_override
 
         # Generate assessment from the relevant summary
-        assessment = generate_assessment(mood_summary)
+        assessment = generate_assessment(
+            mood_summary, mood=mood, bark_this_hour=bark_this_hour,
+            bark_score=bark_score, avg_bark_count=averages.get("avg_bark_count", 0),
+            period=period,
+        )
 
         # Build both headline variants for reveal animation
         if period == "during":
